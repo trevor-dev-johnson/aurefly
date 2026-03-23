@@ -1,16 +1,19 @@
-use std::time::Duration;
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
 use sqlx::PgPool;
+use tokio::task::JoinHandle;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::{
     clients::solana::{SignatureInfo, SolanaRpcClient},
     error::{AppError, AppResult},
     services::{invoices, payments},
-    treasury::TreasuryWallet,
 };
 
 #[derive(Clone)]
@@ -28,31 +31,28 @@ struct DetectorCursor {
 pub async fn run(
     pool: PgPool,
     solana: SolanaRpcClient,
-    treasury: TreasuryWallet,
     config: PaymentDetectorConfig,
 ) {
     let poll_pool = pool.clone();
     let poll_solana = solana.clone();
-    let poll_treasury = treasury.clone();
     let poll_config = config.clone();
 
     tokio::join!(
-        run_poll_loop(poll_pool, poll_solana, poll_treasury, poll_config),
-        run_logs_subscribe_loop(pool, solana, treasury, config)
+        run_poll_loop(poll_pool, poll_solana, poll_config),
+        run_logs_manager_loop(pool, solana, config)
     );
 }
 
 async fn run_poll_loop(
     pool: PgPool,
     solana: SolanaRpcClient,
-    treasury: TreasuryWallet,
     config: PaymentDetectorConfig,
 ) {
-    let mut cursor = DetectorCursor::default();
+    let mut cursors = HashMap::<String, DetectorCursor>::new();
     let mut consecutive_rate_limits = 0u32;
 
     loop {
-        match poll_once(&pool, &solana, &treasury, &config, &mut cursor).await {
+        match poll_once(&pool, &solana, &config, &mut cursors).await {
             Ok(()) => {
                 consecutive_rate_limits = 0;
                 tokio::time::sleep(config.poll_interval).await;
@@ -81,32 +81,114 @@ async fn run_poll_loop(
     }
 }
 
-async fn run_logs_subscribe_loop(
+async fn run_logs_manager_loop(
     pool: PgPool,
     solana: SolanaRpcClient,
-    treasury: TreasuryWallet,
     config: PaymentDetectorConfig,
 ) {
     let Some(ws_url) = solana.websocket_url().map(str::to_string) else {
         tracing::warn!("payment detector websocket disabled: unable to derive websocket URL from RPC URL");
         return;
     };
+    let mut subscriptions = HashMap::<String, JoinHandle<()>>::new();
 
+    loop {
+        match invoices::list_pending_settlement_targets(&pool).await {
+            Ok(targets) => {
+                let active_targets = targets
+                    .iter()
+                    .map(|target| target.usdc_ata.clone())
+                    .collect::<HashSet<_>>();
+
+                let stale_targets = subscriptions
+                    .keys()
+                    .filter(|target| !active_targets.contains(*target))
+                    .cloned()
+                    .collect::<Vec<_>>();
+
+                for stale_target in stale_targets {
+                    if let Some(handle) = subscriptions.remove(&stale_target) {
+                        handle.abort();
+                        tracing::info!(
+                            recipient_token_account = %stale_target,
+                            signal_source = DetectionSource::LogsSubscribe.as_str(),
+                            "payment detector stopped logs subscription for settled destination"
+                        );
+                    }
+                }
+
+                for target in targets {
+                    if subscriptions.contains_key(&target.usdc_ata) {
+                        continue;
+                    }
+
+                    let task_pool = pool.clone();
+                    let task_solana = solana.clone();
+                    let task_config = config.clone();
+                    let ws_url = ws_url.clone();
+                    let recipient_token_account = target.usdc_ata.clone();
+                    let token_mint = target.usdc_mint.clone();
+
+                    let handle = tokio::spawn(async move {
+                        run_logs_subscription_loop_for_target(
+                            task_pool,
+                            task_solana,
+                            task_config,
+                            ws_url,
+                            recipient_token_account,
+                            token_mint,
+                        )
+                        .await;
+                    });
+
+                    subscriptions.insert(target.usdc_ata, handle);
+                }
+            }
+            Err(error) => {
+                tracing::warn!(error = %error, "payment detector failed to refresh pending websocket targets");
+            }
+        }
+
+        tokio::time::sleep(Duration::from_secs(10)).await;
+    }
+}
+
+async fn run_logs_subscription_loop_for_target(
+    pool: PgPool,
+    solana: SolanaRpcClient,
+    config: PaymentDetectorConfig,
+    ws_url: String,
+    recipient_token_account: String,
+    token_mint: String,
+) {
     let mut reconnect_backoff = Duration::from_secs(1);
 
     loop {
-        match consume_logs_subscription(&pool, &solana, &treasury, &config, &ws_url).await {
+        match consume_logs_subscription(
+            &pool,
+            &solana,
+            &config,
+            &ws_url,
+            &recipient_token_account,
+            &token_mint,
+        )
+        .await
+        {
             Ok(()) => {
                 reconnect_backoff = Duration::from_secs(1);
                 tracing::warn!(
+                    recipient_token_account = %recipient_token_account,
                     reconnect_delay_secs = reconnect_backoff.as_secs(),
+                    signal_source = DetectionSource::LogsSubscribe.as_str(),
                     "payment detector logs subscription ended; reconnecting"
                 );
             }
             Err(error) => {
                 tracing::warn!(
                     error = %error,
+                    recipient_token_account = %recipient_token_account,
                     reconnect_delay_secs = reconnect_backoff.as_secs(),
+                    signal_source = DetectionSource::LogsSubscribe.as_str(),
                     "payment detector logs subscription failed; reconnecting"
                 );
             }
@@ -120,38 +202,48 @@ async fn run_logs_subscribe_loop(
 async fn poll_once(
     pool: &PgPool,
     solana: &SolanaRpcClient,
-    treasury: &TreasuryWallet,
     config: &PaymentDetectorConfig,
-    cursor: &mut DetectorCursor,
+    cursors: &mut HashMap<String, DetectorCursor>,
 ) -> AppResult<()> {
-    let mut signatures = solana
-        .get_finalized_signatures_for_address(
-            &treasury.usdc_ata,
-            config.signature_limit,
-            cursor.last_seen_signature.as_deref(),
-        )
-        .await?;
+    let targets = invoices::list_pending_settlement_targets(pool).await?;
+    let active_targets = targets
+        .iter()
+        .map(|target| target.usdc_ata.clone())
+        .collect::<HashSet<_>>();
+    cursors.retain(|target, _| active_targets.contains(target));
 
-    if signatures.is_empty() {
-        return Ok(());
+    for target in targets {
+        let cursor = cursors.entry(target.usdc_ata.clone()).or_default();
+        let mut signatures = solana
+            .get_finalized_signatures_for_address(
+                &target.usdc_ata,
+                config.signature_limit,
+                cursor.last_seen_signature.as_deref(),
+            )
+            .await?;
+
+        if signatures.is_empty() {
+            continue;
+        }
+
+        let newest_signature = signatures.first().map(|signature| signature.signature.clone());
+        signatures.reverse();
+
+        for signature in signatures {
+            process_signature(
+                pool,
+                solana,
+                &target.usdc_ata,
+                &target.usdc_mint,
+                config,
+                &signature,
+                DetectionSource::Polling,
+            )
+            .await?;
+        }
+
+        cursor.last_seen_signature = newest_signature;
     }
-
-    let newest_signature = signatures.first().map(|signature| signature.signature.clone());
-    signatures.reverse();
-
-    for signature in signatures {
-        process_signature(
-            pool,
-            solana,
-            treasury,
-            config,
-            &signature,
-            DetectionSource::Polling,
-        )
-        .await?;
-    }
-
-    cursor.last_seen_signature = newest_signature;
 
     Ok(())
 }
@@ -159,9 +251,10 @@ async fn poll_once(
 async fn consume_logs_subscription(
     pool: &PgPool,
     solana: &SolanaRpcClient,
-    treasury: &TreasuryWallet,
     config: &PaymentDetectorConfig,
     ws_url: &str,
+    recipient_token_account: &str,
+    token_mint: &str,
 ) -> AppResult<()> {
     let (mut socket, _) = connect_async(ws_url).await.map_err(|error| {
         AppError::Internal(anyhow::anyhow!(
@@ -175,7 +268,7 @@ async fn consume_logs_subscription(
         "method": "logsSubscribe",
         "params": [
             {
-                "mentions": [treasury.usdc_ata]
+                "mentions": [recipient_token_account]
             },
             {
                 "commitment": "finalized"
@@ -194,7 +287,8 @@ async fn consume_logs_subscription(
         })?;
 
     tracing::info!(
-        recipient_token_account = %treasury.usdc_ata,
+        recipient_token_account = %recipient_token_account,
+        token_mint = %token_mint,
         signal_source = DetectionSource::LogsSubscribe.as_str(),
         "payment detector subscribed to finalized Solana logs"
     );
@@ -232,7 +326,8 @@ async fn consume_logs_subscription(
                 process_signature(
                     pool,
                     solana,
-                    treasury,
+                    recipient_token_account,
+                    token_mint,
                     config,
                     &signature,
                     DetectionSource::LogsSubscribe,
@@ -264,7 +359,8 @@ async fn consume_logs_subscription(
 async fn process_signature(
     pool: &PgPool,
     solana: &SolanaRpcClient,
-    treasury: &TreasuryWallet,
+    recipient_token_account: &str,
+    token_mint: &str,
     config: &PaymentDetectorConfig,
     signature: &SignatureInfo,
     detection_source: DetectionSource,
@@ -306,18 +402,18 @@ async fn process_signature(
     let Some(transfer) = solana
         .get_finalized_usdc_transfer_to_token_account(
             &signature.signature,
-            &treasury.usdc_ata,
-            &treasury.usdc_mint,
+            recipient_token_account,
+            token_mint,
         )
         .await?
     else {
         tracing::info!(
             tx_signature = %signature.signature,
-            recipient_token_account = %treasury.usdc_ata,
-            token_mint = %treasury.usdc_mint,
+            recipient_token_account = %recipient_token_account,
+            token_mint = %token_mint,
             signal_source = detection_source.as_str(),
             result = "ignored",
-            reason = "not_usdc_transfer_to_treasury_ata",
+            reason = "not_usdc_transfer_to_invoice_destination",
             "detector ignored transaction"
         );
         return Ok(());
@@ -336,8 +432,8 @@ async fn process_signature(
     } else {
         invoices::find_pending_match(
             pool,
-            &treasury.usdc_ata,
-            &treasury.usdc_mint,
+            recipient_token_account,
+            token_mint,
             transfer.amount_usdc,
             window_start,
             received_at,
@@ -349,8 +445,8 @@ async fn process_signature(
     let Some((invoice, match_strategy)) = match_result else {
         tracing::info!(
             tx_signature = %signature.signature,
-            recipient_token_account = %treasury.usdc_ata,
-            token_mint = %treasury.usdc_mint,
+            recipient_token_account = %recipient_token_account,
+            token_mint = %token_mint,
             amount_usdc = %transfer.amount_usdc,
             signal_source = detection_source.as_str(),
             result = "ignored",

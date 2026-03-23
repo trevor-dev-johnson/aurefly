@@ -1,6 +1,6 @@
 const API_BASE = "/api/v1";
 const TOKEN_KEY = "aurefly_auth_token";
-const PLATFORM_FEE_RATE = 0.01;
+const PLATFORM_FEE_RATE = 0;
 
 const landingScreen = document.getElementById("landing-screen");
 const authScreen = document.getElementById("auth-screen");
@@ -29,7 +29,9 @@ const invoiceForm = document.getElementById("invoice-form");
 const invoiceAmountInput = document.getElementById("invoice-amount");
 const invoiceDescriptionInput = document.getElementById("invoice-description");
 const invoiceClientEmailInput = document.getElementById("invoice-client-email");
+const invoicePayoutAddressInput = document.getElementById("invoice-payout-address");
 const invoiceSummarySubtotal = document.getElementById("invoice-summary-subtotal");
+const invoiceSummaryFeeRow = document.getElementById("invoice-summary-fee-row");
 const invoiceSummaryFee = document.getElementById("invoice-summary-fee");
 const invoiceSummaryTotal = document.getElementById("invoice-summary-total");
 
@@ -158,6 +160,7 @@ invoiceForm.addEventListener("submit", async (event) => {
         amount_usdc: invoiceAmountInput.value,
         description: invoiceDescriptionInput.value,
         client_email: invoiceClientEmailInput.value,
+        payout_address: invoicePayoutAddressInput.value,
       }),
       token: getToken(),
     });
@@ -232,7 +235,14 @@ async function loadInvoices() {
       const statusClass = invoice.status === "paid" ? "paid" : "pending";
       const statusLabel = invoice.status === "paid" ? "Paid" : "Pending";
       const description = invoice.description ? escapeHtml(invoice.description) : "";
-      const paymentLabel = paidAmount > 0 ? `${formatMoney(paidAmount)} received` : "No payment yet";
+      const netAmount = Number(invoice.net_amount_usdc || 0);
+      const feeAmount = Number(invoice.platform_fee_usdc || 0);
+      const paymentLabel =
+        paidAmount > 0
+          ? feeAmount > 0
+            ? `${formatMoney(paidAmount)} paid · ${formatMoney(netAmount)} after fee`
+            : `${formatMoney(paidAmount)} paid`
+          : "No payment yet";
 
       return `
         <article class="invoice-row">
@@ -287,13 +297,14 @@ function closeInvoiceModal() {
 }
 
 function updateInvoiceSummary() {
-  const subtotalValue = parseAmount(invoiceAmountInput.value);
-  const feeValue = roundToSix(subtotalValue * PLATFORM_FEE_RATE);
-  const totalValue = roundToSix(subtotalValue + feeValue);
+  const customerPaysValue = parseAmount(invoiceAmountInput.value);
+  const feeValue = roundToSix(customerPaysValue * PLATFORM_FEE_RATE);
+  const totalValue = Math.max(0, roundToSix(customerPaysValue - feeValue));
 
-  invoiceSummarySubtotal.textContent = formatMoney(subtotalValue);
+  invoiceSummarySubtotal.textContent = formatMoney(customerPaysValue);
   invoiceSummaryFee.textContent = formatMoney(feeValue);
   invoiceSummaryTotal.textContent = formatMoney(totalValue);
+  invoiceSummaryFeeRow.classList.toggle("hidden", feeValue <= 0);
 }
 
 function parseAmount(value) {

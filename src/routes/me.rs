@@ -23,6 +23,7 @@ struct CreateInvoiceRequest {
     amount_usdc: String,
     description: Option<String>,
     client_email: Option<String>,
+    payout_address: Option<String>,
 }
 
 async fn list_invoices(
@@ -47,12 +48,14 @@ async fn create_invoice(
     let user = require_user(&headers, &state).await?;
     let invoice = invoices::create(
         &state.pool,
+        &state.solana,
         &state.treasury,
         CreateInvoice {
             user_id: user.id,
             amount_usdc: payload.amount_usdc,
             description: payload.description,
             client_email: payload.client_email,
+            payout_address: payload.payout_address,
         },
     )
     .await?;

@@ -14,7 +14,7 @@ use spl_associated_token_account::instruction::create_associated_token_account;
 
 use crate::{
     error::{AppError, AppResult},
-    solana::{parse_pubkey, token_program_id},
+    solana::{parse_pubkey, token_program_id, UsdcSettlement, MAINNET_USDC_MINT},
     treasury::TreasuryWallet,
 };
 
@@ -34,6 +34,13 @@ pub struct SolanaRpcClient {
     http: Client,
     rpc_url: String,
     ws_url: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResolvedUsdcSettlement {
+    pub wallet_pubkey: String,
+    pub usdc_ata: String,
+    pub usdc_mint: String,
 }
 
 impl SolanaRpcClient {
@@ -71,6 +78,42 @@ impl SolanaRpcClient {
         let rpc: RpcEnvelope<RpcValue<Option<serde_json::Value>>> = self.post(payload).await?;
         rpc_error_to_result(rpc.error, "getAccountInfo")?;
         Ok(rpc.result.and_then(|result| result.value).is_some())
+    }
+
+    pub async fn resolve_usdc_settlement_target(
+        &self,
+        payout_address: &str,
+    ) -> AppResult<ResolvedUsdcSettlement> {
+        let payout_address = payout_address.trim();
+        parse_pubkey(payout_address, "payout_address")?;
+
+        if let Some(wallet_pubkey) = self
+            .get_usdc_token_account_owner(payout_address)
+            .await?
+        {
+            return Ok(ResolvedUsdcSettlement {
+                wallet_pubkey,
+                usdc_ata: payout_address.to_string(),
+                usdc_mint: MAINNET_USDC_MINT.to_string(),
+            });
+        }
+
+        let derived = UsdcSettlement::from_wallet_pubkey(payout_address)?;
+        if self
+            .get_usdc_token_account_owner(&derived.usdc_ata)
+            .await?
+            .is_some()
+        {
+            return Ok(ResolvedUsdcSettlement {
+                wallet_pubkey: derived.wallet_pubkey,
+                usdc_ata: derived.usdc_ata,
+                usdc_mint: derived.usdc_mint,
+            });
+        }
+
+        Err(AppError::Validation(
+            "payout_address must be an existing USDC token account or a wallet with an existing USDC associated token account".to_string(),
+        ))
     }
 
     pub async fn ensure_associated_token_account(
@@ -213,6 +256,51 @@ impl SolanaRpcClient {
         let rpc: RpcEnvelope<Vec<SignatureInfo>> = self.post(payload).await?;
         rpc_error_to_result(rpc.error, "getSignaturesForAddress")?;
         Ok(rpc.result.unwrap_or_default())
+    }
+
+    async fn get_usdc_token_account_owner(&self, address: &str) -> AppResult<Option<String>> {
+        parse_pubkey(address, "address")?;
+
+        let payload = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getAccountInfo",
+            "params": [
+                address,
+                {
+                    "encoding": "jsonParsed",
+                    "commitment": "finalized"
+                }
+            ]
+        });
+
+        let rpc: RpcEnvelope<RpcValue<Option<serde_json::Value>>> = self.post(payload).await?;
+        rpc_error_to_result(rpc.error, "getAccountInfo")?;
+
+        let Some(account_info) = rpc.result.and_then(|result| result.value) else {
+            return Ok(None);
+        };
+
+        let Some(info) = account_info
+            .get("data")
+            .and_then(|value| value.get("parsed"))
+            .and_then(|value| value.get("info"))
+        else {
+            return Ok(None);
+        };
+
+        let Some(mint) = info.get("mint").and_then(|value| value.as_str()) else {
+            return Ok(None);
+        };
+        let Some(owner) = info.get("owner").and_then(|value| value.as_str()) else {
+            return Ok(None);
+        };
+
+        if mint != MAINNET_USDC_MINT {
+            return Ok(None);
+        }
+
+        Ok(Some(owner.to_string()))
     }
 
     async fn get_usdc_transfer_to_token_account(

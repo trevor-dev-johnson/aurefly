@@ -113,18 +113,28 @@
             <span>Client email (optional)</span>
             <input id="invoice-client-email" name="client_email" type="email" placeholder="client@example.com" />
           </label>
+          <label class="field">
+            <span>Payout address</span>
+            <input
+              id="invoice-payout-address"
+              name="payout_address"
+              type="text"
+              placeholder="USDC token account or wallet with a USDC ATA"
+              required
+            />
+          </label>
 
           <div class="invoice-summary">
             <div class="summary-row">
-              <span>Subtotal</span>
+              <span>Customer pays</span>
               <strong id="invoice-summary-subtotal">$0.00</strong>
             </div>
-            <div class="summary-row">
-              <span>Fee (1%)</span>
+            <div class="summary-row" id="invoice-summary-fee-row">
+              <span>Aurefly fee</span>
               <strong id="invoice-summary-fee">$0.00</strong>
             </div>
             <div class="summary-row summary-row-total">
-              <span>Total</span>
+              <span>You receive</span>
               <strong id="invoice-summary-total">$0.00</strong>
             </div>
           </div>

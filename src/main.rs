@@ -108,7 +108,6 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(detector::run(
         pool.clone(),
         solana.clone(),
-        treasury.clone(),
         PaymentDetectorConfig {
             poll_interval: Duration::from_secs(config.payment_detector_poll_interval_secs),
             match_window: chrono::Duration::seconds(config.invoice_match_window_secs),
@@ -134,7 +133,7 @@ async fn main() -> anyhow::Result<()> {
 
 fn init_tracing() {
     let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("solana_pay_backend=info,tower_http=info"));
+        .unwrap_or_else(|_| EnvFilter::new("aurefly_backend=info,tower_http=info"));
 
     tracing_subscriber::registry()
         .with(env_filter)

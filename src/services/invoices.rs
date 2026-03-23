@@ -7,32 +7,43 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    clients::solana::SolanaRpcClient,
     error::{AppError, AppResult},
     models::invoice::Invoice,
     treasury::TreasuryWallet,
 };
 
-pub const PLATFORM_FEE_BPS: i16 = 100;
+pub const PLATFORM_FEE_BPS: i16 = 0;
 
 pub struct CreateInvoice {
     pub user_id: Uuid,
     pub amount_usdc: String,
     pub description: Option<String>,
     pub client_email: Option<String>,
+    pub payout_address: Option<String>,
 }
 
 pub async fn create(
     pool: &PgPool,
+    solana: &SolanaRpcClient,
     treasury: &TreasuryWallet,
     input: CreateInvoice,
 ) -> AppResult<Invoice> {
     let invoice_id = Uuid::new_v4();
     let subtotal = parse_amount(&input.amount_usdc)?;
     let platform_fee = calculate_platform_fee(subtotal);
-    let amount = subtotal + platform_fee;
+    let amount = subtotal;
     let reference_pubkey = invoice_reference_pubkey(invoice_id);
     let description = clean_optional(input.description);
     let client_email = clean_optional(input.client_email);
+    let settlement = match clean_optional(input.payout_address) {
+        Some(payout_address) => solana.resolve_usdc_settlement_target(&payout_address).await?,
+        None => crate::clients::solana::ResolvedUsdcSettlement {
+            wallet_pubkey: treasury.wallet_pubkey.clone(),
+            usdc_ata: treasury.usdc_ata.clone(),
+            usdc_mint: treasury.usdc_mint.clone(),
+        },
+    };
 
     let invoice = sqlx::query_as::<_, Invoice>(
         r#"
@@ -82,10 +93,10 @@ pub async fn create(
     .bind(amount)
     .bind(&description)
     .bind(&client_email)
-    .bind(&treasury.usdc_ata)
-    .bind(&treasury.wallet_pubkey)
-    .bind(&treasury.usdc_ata)
-    .bind(&treasury.usdc_mint)
+    .bind(&settlement.usdc_ata)
+    .bind(&settlement.wallet_pubkey)
+    .bind(&settlement.usdc_ata)
+    .bind(&settlement.usdc_mint)
     .fetch_one(pool)
     .await?;
 
@@ -320,6 +331,23 @@ pub async fn backfill_missing_references(pool: &PgPool) -> AppResult<u64> {
     Ok(missing.len() as u64)
 }
 
+pub async fn list_pending_settlement_targets(
+    pool: &PgPool,
+) -> AppResult<Vec<PendingSettlementTarget>> {
+    let targets = sqlx::query_as::<_, PendingSettlementTarget>(
+        r#"
+        SELECT DISTINCT usdc_ata, usdc_mint
+        FROM invoices
+        WHERE status = 'pending'
+        ORDER BY usdc_ata ASC
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(targets)
+}
+
 pub fn invoice_reference_pubkey(invoice_id: Uuid) -> String {
     let digest = hash(invoice_id.as_bytes());
     Pubkey::new_from_array(digest.to_bytes()).to_string()
@@ -342,6 +370,15 @@ fn calculate_platform_fee(subtotal: Decimal) -> Decimal {
     (subtotal * Decimal::new(i64::from(PLATFORM_FEE_BPS), 4)).round_dp(6)
 }
 
+pub fn calculate_net_amount(amount: Decimal, platform_fee: Decimal) -> Decimal {
+    let net = amount - platform_fee;
+    if net.is_sign_negative() {
+        Decimal::ZERO
+    } else {
+        net.round_dp(6)
+    }
+}
+
 fn clean_optional(value: Option<String>) -> Option<String> {
     value.and_then(|raw| {
         let trimmed = raw.trim();
@@ -356,4 +393,10 @@ fn clean_optional(value: Option<String>) -> Option<String> {
 #[derive(sqlx::FromRow)]
 pub struct InvoiceMatch {
     pub id: Uuid,
+}
+
+#[derive(sqlx::FromRow)]
+pub struct PendingSettlementTarget {
+    pub usdc_ata: String,
+    pub usdc_mint: String,
 }

@@ -1,6 +1,7 @@
 const invoiceCard = document.getElementById("invoice-card");
 const invoiceTotal = document.getElementById("invoice-total");
 const invoiceSubtotal = document.getElementById("invoice-subtotal");
+const invoiceFeeRow = document.getElementById("invoice-fee-row");
 const invoiceFee = document.getElementById("invoice-fee");
 const invoiceDescription = document.getElementById("invoice-description");
 const invoiceActionsPanel = document.getElementById("invoice-actions-panel");
@@ -102,7 +103,8 @@ function renderInvoice(invoice) {
   invoiceActionsPanel.classList.toggle("hidden", invoice.status === "paid");
   invoiceTotal.textContent = formatMoney(totalAmount);
   invoiceSubtotal.textContent = formatMoney(subtotalAmount);
-  invoiceFee.textContent = formatMoney(feeAmount);
+  invoiceFee.textContent = feeAmount > 0 ? `Paid by merchant (${formatMoney(feeAmount)})` : "No fee";
+  invoiceFeeRow.classList.toggle("hidden", feeAmount <= 0);
   invoiceDescription.textContent = invoice.description || "";
   invoiceDescription.classList.toggle("hidden", !invoice.description);
   address.textContent = formatAddress(invoice.usdc_ata);

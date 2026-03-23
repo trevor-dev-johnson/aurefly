@@ -27,6 +27,7 @@ struct CreateInvoiceRequest {
     amount_usdc: String,
     description: Option<String>,
     client_email: Option<String>,
+    payout_address: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -43,6 +44,7 @@ pub(crate) struct InvoiceResponse {
     platform_fee_usdc: String,
     platform_fee_bps: i16,
     amount_usdc: String,
+    net_amount_usdc: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -86,6 +88,9 @@ impl InvoiceResponse {
         let subtotal_usdc = invoice.subtotal_usdc.normalize().to_string();
         let platform_fee_usdc = invoice.platform_fee_usdc.normalize().to_string();
         let amount_usdc = invoice.amount_usdc.normalize().to_string();
+        let net_amount_usdc = invoices::calculate_net_amount(invoice.amount_usdc, invoice.platform_fee_usdc)
+            .normalize()
+            .to_string();
         let paid_amount_usdc = invoice.paid_amount_usdc.normalize().to_string();
         let payment_uri = build_payment_uri(
             &invoice.usdc_ata,
@@ -111,6 +116,7 @@ impl InvoiceResponse {
             platform_fee_usdc,
             platform_fee_bps: invoice.platform_fee_bps,
             amount_usdc,
+            net_amount_usdc,
             description: invoice.description,
             client_email: if include_client_email {
                 invoice.client_email
@@ -160,12 +166,14 @@ async fn create_invoice(
 ) -> AppResult<(StatusCode, Json<InvoiceResponse>)> {
     let invoice = invoices::create(
         &state.pool,
+        &state.solana,
         &state.treasury,
         CreateInvoice {
             user_id: payload.user_id,
             amount_usdc: payload.amount_usdc,
             description: payload.description,
             client_email: payload.client_email,
+            payout_address: payload.payout_address,
         },
     )
     .await?;

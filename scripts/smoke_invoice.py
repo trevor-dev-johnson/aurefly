@@ -6,6 +6,7 @@ import uuid
 
 BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080/api/v1"
 AMOUNT_USDC = sys.argv[2] if len(sys.argv) > 2 else "49.99"
+PAYOUT_ADDRESS = sys.argv[3] if len(sys.argv) > 3 else None
 
 
 def request(method: str, path: str, payload: dict | None = None) -> dict:
@@ -43,6 +44,7 @@ def main() -> None:
         {
             "user_id": user["id"],
             "amount_usdc": AMOUNT_USDC,
+            **({"payout_address": PAYOUT_ADDRESS} if PAYOUT_ADDRESS else {}),
         },
     )
     fetched_invoice = request("GET", f"/invoices/{invoice['id']}")
