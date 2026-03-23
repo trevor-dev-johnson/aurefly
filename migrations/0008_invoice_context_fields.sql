@@ -1,0 +1,5 @@
+ALTER TABLE invoices
+ADD COLUMN IF NOT EXISTS description TEXT;
+
+ALTER TABLE invoices
+ADD COLUMN IF NOT EXISTS client_email TEXT;

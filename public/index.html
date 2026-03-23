@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aurefly</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body class="app-body">
+    <main class="app-root">
+      <section class="screen-center" id="landing-screen">
+        <div class="landing-shell">
+          <div class="brand-lockup brand-lockup-large">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span>Aurefly</span>
+          </div>
+          <h1 class="landing-title">Send an invoice.<br />Get paid in seconds.</h1>
+          <p class="landing-copy">Accept USDC payments instantly. No banks. No delays.</p>
+          <div class="landing-actions">
+            <button class="button button-primary" id="get-started" type="button">Get Started</button>
+            <button class="button button-secondary" id="view-demo" type="button">View Demo</button>
+          </div>
+          <p class="status-text status-text-center" id="landing-status"></p>
+        </div>
+      </section>
+
+      <section class="screen-center hidden" id="auth-screen">
+        <div class="card auth-card">
+          <div class="brand-lockup">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span>Aurefly</span>
+          </div>
+          <form class="form-stack" id="auth-form">
+            <label class="field">
+              <span>Email</span>
+              <input id="email" name="email" type="email" autocomplete="email" required />
+            </label>
+            <label class="field">
+              <span>Password</span>
+              <input id="password" name="password" type="password" autocomplete="current-password" required />
+            </label>
+            <button class="button button-primary button-block" id="auth-submit" type="submit">Create account</button>
+          </form>
+          <p class="auth-switch">
+            <span id="auth-switch-label">Already have one?</span>
+            <button class="text-button" id="auth-toggle" type="button">Sign in</button>
+          </p>
+          <button class="text-button auth-back" id="back-to-landing" type="button">Back</button>
+          <p class="status-text" id="auth-status"></p>
+        </div>
+      </section>
+
+      <section class="dashboard-shell hidden" id="dashboard-screen">
+        <header class="card dashboard-header">
+          <div>
+            <div class="brand-lockup">
+              <span class="brand-mark" aria-hidden="true"></span>
+              <span>Aurefly</span>
+            </div>
+            <p class="dashboard-subtitle" id="dashboard-subtitle"></p>
+          </div>
+          <div class="dashboard-header-actions">
+            <button class="button button-secondary" id="logout-button" type="button">Sign out</button>
+            <button class="button button-primary" id="open-invoice-modal" type="button">New Invoice</button>
+          </div>
+        </header>
+
+        <section class="card summary-card">
+          <span class="section-label">Total Received</span>
+          <strong class="money summary-value" id="total-received">$0.00</strong>
+        </section>
+
+        <section class="card list-card">
+          <div class="section-row">
+            <div>
+              <h2>Invoices</h2>
+              <p class="section-caption">Track what has settled and what is still waiting on-chain.</p>
+            </div>
+            <button class="button button-secondary button-small" id="refresh-button" type="button">Refresh</button>
+          </div>
+          <div class="guardrail-inline">
+            Don&apos;t send multiple payments with the same amount at the same time.
+          </div>
+          <div class="invoice-list" id="invoice-list"></div>
+        </section>
+
+        <p class="status-text" id="invoice-status"></p>
+      </section>
+    </main>
+
+    <div class="modal-backdrop hidden" id="invoice-modal">
+      <section class="card modal-card" role="dialog" aria-modal="true" aria-labelledby="invoice-modal-title">
+        <div class="modal-header">
+          <div>
+            <p class="section-label">Create Invoice</p>
+            <h2 id="invoice-modal-title">Create Invoice</h2>
+          </div>
+          <button class="icon-button" id="close-invoice-modal" type="button" aria-label="Close create invoice dialog">
+            ×
+          </button>
+        </div>
+
+        <form class="form-stack" id="invoice-form">
+          <label class="field field-large">
+            <span>Amount (USDC)</span>
+            <input id="invoice-amount" name="amount_usdc" type="number" min="0.01" step="0.000001" placeholder="1.24" required />
+          </label>
+          <label class="field">
+            <span>Description</span>
+            <input id="invoice-description" name="description" type="text" placeholder="Design work" />
+          </label>
+          <label class="field">
+            <span>Client email (optional)</span>
+            <input id="invoice-client-email" name="client_email" type="email" placeholder="client@example.com" />
+          </label>
+
+          <div class="invoice-summary">
+            <div class="summary-row">
+              <span>Subtotal</span>
+              <strong id="invoice-summary-subtotal">$0.00</strong>
+            </div>
+            <div class="summary-row">
+              <span>Fee (1%)</span>
+              <strong id="invoice-summary-fee">$0.00</strong>
+            </div>
+            <div class="summary-row summary-row-total">
+              <span>Total</span>
+              <strong id="invoice-summary-total">$0.00</strong>
+            </div>
+          </div>
+
+          <button class="button button-primary button-block" type="submit">Create Invoice</button>
+        </form>
+      </section>
+    </div>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,5 @@
+target/
+.env
+.sqlx/
+postgres_data/
+data/

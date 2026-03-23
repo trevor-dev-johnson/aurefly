@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: solana-pay-db
+    environment:
+      POSTGRES_USER: solana_pay
+      POSTGRES_PASSWORD: solana_pay
+      POSTGRES_DB: solana_pay
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U solana_pay -d solana_pay"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: solana-pay-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://solana_pay:solana_pay@db:5432/solana_pay
+      HOST: 0.0.0.0
+      PORT: 8080
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL:-}
+      HELIUS_API_KEY: ${HELIUS_API_KEY:-}
+      TREASURY_WALLET_PATH: /data/treasury-wallet.json
+      SOLANA_FEE_PAYER_PATH: /solana/id.json
+      PAYMENT_DETECTOR_POLL_INTERVAL_SECS: 10
+      INVOICE_MATCH_WINDOW_SECS: 86400
+      PAYMENT_DETECTOR_SIGNATURE_LIMIT: 25
+      RUST_LOG: info
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+      - "${USERPROFILE}/.config/solana:/solana:ro"
+
+volumes:
+  postgres_data:
