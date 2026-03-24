@@ -114,6 +114,9 @@ textarea:focus {
 
 .brand-lockup-large {
   font-size: 1.05rem;
+  display: grid;
+  justify-items: center;
+  gap: 14px;
 }
 
 .brand-lockup-center {
@@ -121,11 +124,18 @@ textarea:focus {
 }
 
 .brand-mark {
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, var(--cta), var(--success));
-  box-shadow: 0 0 24px rgba(59, 130, 246, 0.38);
+  display: inline-block;
+  width: 42px;
+  height: 32px;
+  flex: 0 0 auto;
+  background: url("/static/aurefly-logo.svg") center / contain no-repeat;
+  filter: drop-shadow(0 0 18px rgba(255, 212, 87, 0.35));
+}
+
+.brand-lockup-large .brand-mark {
+  width: 104px;
+  height: 78px;
+  filter: drop-shadow(0 0 26px rgba(255, 212, 87, 0.42));
 }
 
 .landing-title {
