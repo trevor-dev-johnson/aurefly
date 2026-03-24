@@ -46,9 +46,10 @@ pub async fn create(pool: &PgPool, input: CreateUnmatchedPayment) -> AppResult<b
             amount_usdc,
             sender_wallet,
             reference_pubkey,
-            reason
+            reason,
+            status
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, 'pending')
         ON CONFLICT (signature) DO NOTHING
         "#,
     )

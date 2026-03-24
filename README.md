@@ -155,3 +155,4 @@ Notes:
 - invoice responses include `wallet_pubkey`, `usdc_ata`, `usdc_mint`, and `payment_uri`.
 - confirmed payments are recorded internally by the detector after on-chain verification. There is no public payment-ingestion endpoint.
 - invoices are settled by Solana Pay reference only. Payments sent without the Aurefly payment link or QR are stored as unmatched and are not auto-credited.
+- unmatched payments now carry a review lifecycle: `pending`, `reviewed`, or `resolved`, plus an optional `linked_invoice_id` for manual reconciliation later.
