@@ -390,6 +390,11 @@ textarea:focus {
   font-size: 0.96rem;
 }
 
+.invoice-row-routing {
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+}
+
 .invoice-row-status {
   display: flex;
   justify-content: center;
@@ -436,6 +441,11 @@ textarea:focus {
 .inline-link {
   color: #93c5fd;
   text-decoration: none;
+}
+
+.inline-code {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
 }
 
 .row-link:hover,

@@ -12,7 +12,6 @@ use crate::{
 };
 
 pub const PLATFORM_FEE_BPS: i16 = 0;
-const INVALID_PAYOUT_ADDRESS_MESSAGE: &str = "payout_address must be an existing mainnet USDC associated token account (ATA). Create a USDC token account in your wallet first, then paste that ATA instead of your wallet address.";
 
 pub struct CreateInvoice {
     pub user_id: Uuid,
@@ -43,16 +42,7 @@ pub async fn create(
 
     let settlement = solana
         .resolve_usdc_settlement_target(payout_address)
-        .await
-        .map_err(|error| match error {
-            AppError::Validation(message)
-                if message.contains("associated token account")
-                    || message.contains("non-ATA token account") =>
-            {
-                AppError::Validation(INVALID_PAYOUT_ADDRESS_MESSAGE.to_string())
-            }
-            other => other,
-        })?;
+        .await?;
 
     let invoice = sqlx::query_as::<_, Invoice>(
         r#"

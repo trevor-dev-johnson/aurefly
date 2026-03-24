@@ -87,24 +87,36 @@ impl SolanaRpcClient {
         let payout_address = payout_address.trim();
         parse_pubkey(payout_address, "payout_address")?;
 
-        let Some(wallet_pubkey) = self
-            .get_usdc_token_account_owner(payout_address)
-            .await?
-        else {
-            return Err(AppError::Validation(
-                "payout_address must be an existing mainnet USDC associated token account (ATA). Create a USDC token account in your wallet first, then paste that ATA instead of your wallet address.".to_string(),
-            ));
-        };
+        if let Some(token_account) = self.get_token_account_info(payout_address).await? {
+            if token_account.mint != MAINNET_USDC_MINT {
+                return Err(AppError::Validation(
+                    "payout_address must be a mainnet wallet address or mainnet USDC account".to_string(),
+                ));
+            }
 
-        let derived = UsdcSettlement::from_wallet_pubkey(&wallet_pubkey)?;
-        if payout_address != derived.usdc_ata {
+            let derived = UsdcSettlement::from_wallet_pubkey(&token_account.owner)?;
+            if payout_address != derived.usdc_ata {
+                return Err(AppError::Validation(
+                    "payout_address must be the wallet address or its mainnet USDC associated token account. Non-ATA token accounts are not supported.".to_string(),
+                ));
+            }
+
+            return Ok(ResolvedUsdcSettlement {
+                wallet_pubkey: token_account.owner,
+                usdc_ata: derived.usdc_ata,
+                usdc_mint: derived.usdc_mint,
+            });
+        }
+
+        let derived = UsdcSettlement::from_wallet_pubkey(payout_address)?;
+        if !self.account_exists(&derived.usdc_ata).await? {
             return Err(AppError::Validation(
-                "payout_address must be the merchant's USDC associated token account (ATA), not a wallet pubkey or non-ATA token account".to_string(),
+                "You don't have a USDC account yet. Create a USDC token account in your wallet first, then paste either your wallet address or that USDC account address.".to_string(),
             ));
         }
 
         Ok(ResolvedUsdcSettlement {
-            wallet_pubkey,
+            wallet_pubkey: derived.wallet_pubkey,
             usdc_ata: derived.usdc_ata,
             usdc_mint: derived.usdc_mint,
         })
@@ -252,7 +264,10 @@ impl SolanaRpcClient {
         Ok(rpc.result.unwrap_or_default())
     }
 
-    async fn get_usdc_token_account_owner(&self, address: &str) -> AppResult<Option<String>> {
+    async fn get_token_account_info(
+        &self,
+        address: &str,
+    ) -> AppResult<Option<ParsedTokenAccountInfo>> {
         parse_pubkey(address, "address")?;
 
         let payload = json!({
@@ -304,11 +319,10 @@ impl SolanaRpcClient {
             return Ok(None);
         };
 
-        if mint != MAINNET_USDC_MINT {
-            return Ok(None);
-        }
-
-        Ok(Some(owner.to_string()))
+        Ok(Some(ParsedTokenAccountInfo {
+            owner: owner.to_string(),
+            mint: mint.to_string(),
+        }))
     }
 
     async fn get_usdc_transfer_to_token_account(
@@ -849,6 +863,11 @@ fn parsed_account_key_str(account_key: &ParsedAccountKey) -> Option<&str> {
 struct TokenDelta {
     account_key: String,
     owner: Option<String>,
+}
+
+struct ParsedTokenAccountInfo {
+    owner: String,
+    mint: String,
 }
 
 fn lamports_to_sol(lamports: u64) -> String {

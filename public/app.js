@@ -162,7 +162,11 @@ invoiceForm.addEventListener("submit", async (event) => {
     const invoicePath = `/pay/${invoice.id}`;
     const invoiceUrl = new URL(invoicePath, window.location.origin).toString();
     const copyLabel = await copyInvoiceLink(invoiceUrl);
-    invoiceStatus.innerHTML = `${copyLabel} <a class="inline-link" href="${invoicePath}" target="_blank" rel="noreferrer">Open pay page</a>`;
+    invoiceStatus.innerHTML = `
+      ${copyLabel} <a class="inline-link" href="${invoicePath}" target="_blank" rel="noreferrer">Open pay page</a><br />
+      Wallet: <code class="inline-code">${escapeHtml(shortAddress(invoice.wallet_pubkey))}</code><br />
+      USDC account: <code class="inline-code">${escapeHtml(shortAddress(invoice.usdc_ata))}</code>
+    `;
   } catch (error) {
     if (handleUnauthorized(error)) {
       return;
@@ -243,6 +247,7 @@ async function loadInvoices() {
                 : ""
             }
             <span class="invoice-row-subtext">${paymentLabel}</span>
+            <span class="invoice-row-subtext invoice-row-routing">Wallet ${escapeHtml(shortAddress(invoice.wallet_pubkey))} · USDC ${escapeHtml(shortAddress(invoice.usdc_ata))}</span>
           </div>
           <div class="invoice-row-status">
             <span class="status-badge ${statusClass}">${statusLabel}</span>
@@ -345,6 +350,14 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function shortAddress(value) {
+  if (!value) {
+    return "-";
+  }
+
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
 function getToken() {
