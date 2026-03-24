@@ -5,23 +5,152 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Aurefly</title>
     <link rel="icon" type="image/svg+xml" href="/static/aurefly-logo.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body class="app-body">
     <main class="app-root">
-      <section class="screen-center" id="landing-screen">
-        <div class="landing-shell">
-          <div class="brand-lockup brand-lockup-large">
-            <span class="brand-mark" aria-hidden="true"></span>
-            <span>Aurefly</span>
-          </div>
-          <h1 class="landing-title">Send an invoice.<br />Get paid in seconds.</h1>
-          <p class="landing-copy">Accept USDC payments instantly. No banks. No delays.</p>
-          <div class="landing-actions">
-            <button class="button button-primary" id="get-started" type="button">Get Started</button>
-            <button class="button button-secondary" id="view-demo" type="button">View Demo</button>
-          </div>
-          <p class="status-text status-text-center" id="landing-status"></p>
+      <section class="landing-page" id="landing-screen">
+        <div class="landing-frame">
+          <section class="landing-hero">
+            <div class="landing-hero-copy">
+              <div class="brand-lockup">
+                <span class="brand-mark" aria-hidden="true"></span>
+                <span>Aurefly</span>
+              </div>
+              <span class="landing-eyebrow">Non-custodial USDC invoicing on Solana</span>
+              <h1 class="landing-title">Get paid in USDC. Instantly.</h1>
+              <p class="landing-copy">Create an invoice. Send a link. Funds hit your wallet — no banks, no delays.</p>
+              <div class="landing-actions">
+                <button class="button button-primary" id="get-started" type="button">Get Started</button>
+                <button class="button button-secondary" id="view-demo" type="button">Try Demo Invoice</button>
+              </div>
+              <p class="status-text" id="landing-status"></p>
+              <div class="landing-trust-grid" aria-label="Landing page trust points">
+                <span class="trust-pill">Powered by Solana</span>
+                <span class="trust-pill">Non-custodial</span>
+                <span class="trust-pill">USDC only</span>
+                <span class="trust-pill">Payments settle in seconds</span>
+              </div>
+            </div>
+
+            <div class="landing-visual-shell">
+              <div class="hero-orbit"></div>
+              <article class="card hero-invoice-card">
+                <div class="hero-card-head">
+                  <div>
+                    <span class="section-label">Invoice</span>
+                    <strong class="hero-card-amount">$240.00</strong>
+                  </div>
+                  <span class="status-badge pending">Pending</span>
+                </div>
+                <p class="hero-card-description">Homepage redesign</p>
+                <div class="hero-qr-and-state">
+                  <div class="hero-qr-grid" aria-hidden="true">
+                    <span></span><span class="fill"></span><span></span><span class="fill"></span><span></span><span class="fill"></span>
+                    <span class="fill"></span><span></span><span class="fill"></span><span></span><span class="fill"></span><span></span>
+                    <span></span><span class="fill"></span><span class="fill"></span><span></span><span></span><span class="fill"></span>
+                    <span class="fill"></span><span></span><span></span><span class="fill"></span><span class="fill"></span><span></span>
+                    <span></span><span class="fill"></span><span></span><span class="fill"></span><span></span><span class="fill"></span>
+                    <span class="fill"></span><span></span><span class="fill"></span><span></span><span class="fill"></span><span></span>
+                  </div>
+                  <div class="hero-state-card">
+                    <span class="section-label">Settlement</span>
+                    <strong>Paid</strong>
+                    <p>$240.00 received</p>
+                    <span class="hero-state-caption">Confirmed on Solana</span>
+                  </div>
+                </div>
+                <div class="hero-routing-row">
+                  <span>Wallet</span>
+                  <code>8Y2W...J4Km</code>
+                </div>
+                <div class="hero-routing-row">
+                  <span>USDC account</span>
+                  <code>AbC2...TXEUy</code>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section class="card landing-steps">
+            <article class="step-card">
+              <span class="step-icon">1</span>
+              <div>
+                <strong>Create invoice</strong>
+                <p>Enter the amount, description, and where you want USDC to land.</p>
+              </div>
+            </article>
+            <article class="step-card">
+              <span class="step-icon">2</span>
+              <div>
+                <strong>Share link</strong>
+                <p>Send one Aurefly payment page with the exact USDC route and QR built in.</p>
+              </div>
+            </article>
+            <article class="step-card">
+              <span class="step-icon">3</span>
+              <div>
+                <strong>Get paid</strong>
+                <p>Customers approve in their wallet and Aurefly confirms the payment on-chain.</p>
+              </div>
+            </article>
+          </section>
+
+          <section class="landing-proof">
+            <div class="landing-proof-copy">
+              <span class="section-label">Why It Clicks</span>
+              <h2 class="landing-proof-title">One link. One scan. Paid.</h2>
+              <p class="landing-proof-text">
+                Customers open the invoice, scan the QR or tap pay, and send USDC from Phantom or Solflare.
+                Aurefly watches for the exact reference and marks it paid automatically.
+              </p>
+              <div class="landing-proof-points">
+                <span class="proof-point">No accounts needed to pay</span>
+                <span class="proof-point">Reference-based matching</span>
+                <span class="proof-point">Wallet-first settlement</span>
+              </div>
+            </div>
+
+            <div class="landing-proof-grid">
+              <article class="card proof-invoice-card">
+                <div class="proof-card-header">
+                  <div class="brand-lockup">
+                    <span class="brand-mark" aria-hidden="true"></span>
+                    <span>Aurefly invoice</span>
+                  </div>
+                  <span class="status-badge pending">Waiting</span>
+                </div>
+                <strong class="money proof-card-amount">$1,250.00</strong>
+                <p class="proof-card-copy">Pay for monthly retainer</p>
+                <div class="proof-card-divider"></div>
+                <div class="proof-card-row">
+                  <span>USDC pay address</span>
+                  <code>AbC2...TXEUy</code>
+                </div>
+                <div class="proof-card-row">
+                  <span>Reference</span>
+                  <code>9xHz...VXqQ</code>
+                </div>
+              </article>
+
+              <article class="card proof-paid-card">
+                <span class="section-label">Confirmation</span>
+                <strong class="proof-paid-title">Payment complete</strong>
+                <p class="proof-paid-copy">$1,250.00 received and confirmed on Solana.</p>
+                <div class="proof-paid-list">
+                  <span>USDC only</span>
+                  <span>Reference matched</span>
+                  <span>Explorer ready</span>
+                </div>
+              </article>
+            </div>
+          </section>
         </div>
       </section>
 

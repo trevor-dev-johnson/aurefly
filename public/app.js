@@ -1,6 +1,8 @@
 const API_BASE = "/api/v1";
 const TOKEN_KEY = "aurefly_auth_token";
 const PLATFORM_FEE_RATE = 0;
+const DEMO_INVOICE_ID = "544ff0a7-3ee1-4d42-aa74-2305dc6921bf";
+const DEMO_INVOICE_FALLBACK_URL = `https://aurefly.com/pay/${DEMO_INVOICE_ID}`;
 
 const landingScreen = document.getElementById("landing-screen");
 const authScreen = document.getElementById("auth-screen");
@@ -47,8 +49,18 @@ getStartedButton.addEventListener("click", () => {
 });
 
 viewDemoButton.addEventListener("click", async () => {
-  landingStatus.textContent = "";
-  showAuth("sign-in");
+  landingStatus.textContent = "Opening demo invoice...";
+  viewDemoButton.disabled = true;
+
+  try {
+    const response = await fetch(`${API_BASE}/public/invoices/${DEMO_INVOICE_ID}`);
+    const target = response.ok ? `/pay/${DEMO_INVOICE_ID}` : DEMO_INVOICE_FALLBACK_URL;
+    window.location.assign(target);
+  } catch (_) {
+    window.location.assign(DEMO_INVOICE_FALLBACK_URL);
+  } finally {
+    viewDemoButton.disabled = false;
+  }
 });
 
 authToggle.addEventListener("click", () => {
