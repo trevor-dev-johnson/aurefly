@@ -7,7 +7,7 @@ use crate::{
     state::AppState,
 };
 
-pub async fn require_user(headers: &HeaderMap, state: &AppState) -> AppResult<User> {
+pub fn require_bearer_token(headers: &HeaderMap) -> AppResult<String> {
     let authorization = headers
         .get(AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
@@ -21,7 +21,13 @@ pub async fn require_user(headers: &HeaderMap, state: &AppState) -> AppResult<Us
         return Err(AppError::Unauthorized("missing bearer token".to_string()));
     }
 
-    auth::user_for_token(&state.pool, token)
+    Ok(token.to_string())
+}
+
+pub async fn require_user(headers: &HeaderMap, state: &AppState) -> AppResult<User> {
+    let token = require_bearer_token(headers)?;
+
+    auth::user_for_token(&state.pool, &token)
         .await?
         .ok_or_else(|| AppError::Unauthorized("invalid or expired auth token".to_string()))
 }

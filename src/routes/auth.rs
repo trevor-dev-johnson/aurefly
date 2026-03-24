@@ -10,7 +10,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    auth::require_user,
+    auth::{require_bearer_token, require_user},
     error::AppResult,
     services::auth::{self, RegisterUser, SignInUser},
     models::user::User,
@@ -21,6 +21,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/sign-up", post(sign_up))
         .route("/sign-in", post(sign_in))
+        .route("/logout", post(log_out))
         .route("/me", get(me))
 }
 
@@ -110,4 +111,13 @@ async fn me(
 ) -> AppResult<Json<UserResponse>> {
     let user = require_user(&headers, &state).await?;
     Ok(Json(user.into()))
+}
+
+async fn log_out(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> AppResult<StatusCode> {
+    let token = require_bearer_token(&headers)?;
+    auth::revoke_token(&state.pool, &token).await?;
+    Ok(StatusCode::NO_CONTENT)
 }

@@ -82,12 +82,24 @@ authForm.addEventListener("submit", async (event) => {
   }
 });
 
-logoutButton.addEventListener("click", () => {
-  localStorage.removeItem(TOKEN_KEY);
-  currentUser = null;
-  stopRefresh();
-  closeInvoiceModal();
-  showScreen("landing");
+logoutButton.addEventListener("click", async () => {
+  invoiceStatus.textContent = "Signing out...";
+  logoutButton.disabled = true;
+
+  try {
+    await apiRequest("/auth/logout", {
+      method: "POST",
+      token: getToken(),
+    });
+    clearSessionState();
+  } catch (error) {
+    if (handleUnauthorized(error)) {
+      return;
+    }
+    invoiceStatus.textContent = error.message;
+  } finally {
+    logoutButton.disabled = false;
+  }
 });
 
 refreshButton.addEventListener("click", async () => {
@@ -341,15 +353,21 @@ function getToken() {
 
 function handleUnauthorized(error) {
   if (error && error.status === 401) {
-    localStorage.removeItem(TOKEN_KEY);
-    currentUser = null;
-    stopRefresh();
-    closeInvoiceModal();
-    showScreen("landing");
+    clearSessionState();
     return true;
   }
 
   return false;
+}
+
+function clearSessionState() {
+  localStorage.removeItem(TOKEN_KEY);
+  currentUser = null;
+  stopRefresh();
+  closeInvoiceModal();
+  invoiceStatus.textContent = "";
+  authStatus.textContent = "";
+  showScreen("landing");
 }
 
 async function apiRequest(path, options = {}) {
@@ -392,9 +410,7 @@ async function bootstrap() {
   try {
     await showDashboard();
   } catch (error) {
-    localStorage.removeItem(TOKEN_KEY);
-    currentUser = null;
-    showScreen("landing");
+    clearSessionState();
   }
 }
 

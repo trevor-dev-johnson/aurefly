@@ -6,7 +6,7 @@ use crate::{
     models::user::User,
 };
 
-const SESSION_TTL_SQL: &str = "NOW() + INTERVAL '30 days'";
+const SESSION_TTL_SQL: &str = "NOW() + INTERVAL '24 hours'";
 
 pub struct RegisterUser {
     pub email: String,
@@ -87,6 +87,25 @@ pub async fn user_for_token(pool: &PgPool, token: &str) -> AppResult<Option<User
     .await?;
 
     Ok(user)
+}
+
+pub async fn revoke_token(pool: &PgPool, token: &str) -> AppResult<bool> {
+    let token = token.trim();
+    if token.is_empty() {
+        return Ok(false);
+    }
+
+    let deleted = sqlx::query(
+        r#"
+        DELETE FROM auth_sessions
+        WHERE token_hash = encode(digest($1, 'sha256'), 'hex')
+        "#,
+    )
+    .bind(token)
+    .execute(pool)
+    .await?;
+
+    Ok(deleted.rows_affected() > 0)
 }
 
 async fn issue_session(pool: &PgPool, user: User) -> AppResult<AuthSession> {
