@@ -112,7 +112,6 @@ async fn main() -> anyhow::Result<()> {
         solana.clone(),
         PaymentDetectorConfig {
             poll_interval: Duration::from_secs(config.payment_detector_poll_interval_secs),
-            match_window: chrono::Duration::seconds(config.invoice_match_window_secs),
             signature_limit: config.payment_detector_signature_limit,
         },
     ));

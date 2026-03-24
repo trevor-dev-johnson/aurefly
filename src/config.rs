@@ -19,7 +19,6 @@ pub struct Config {
     pub auth_rate_limit_max_requests: usize,
     pub auth_rate_limit_window_secs: u64,
     pub payment_detector_poll_interval_secs: u64,
-    pub invoice_match_window_secs: i64,
     pub payment_detector_signature_limit: usize,
 }
 
@@ -89,10 +88,6 @@ impl Config {
             .unwrap_or_else(|_| "10".to_string())
             .parse()
             .context("PAYMENT_DETECTOR_POLL_INTERVAL_SECS must be a valid u64")?;
-        let invoice_match_window_secs = env::var("INVOICE_MATCH_WINDOW_SECS")
-            .unwrap_or_else(|_| "86400".to_string())
-            .parse()
-            .context("INVOICE_MATCH_WINDOW_SECS must be a valid i64")?;
         let payment_detector_signature_limit = env::var("PAYMENT_DETECTOR_SIGNATURE_LIMIT")
             .unwrap_or_else(|_| "25".to_string())
             .parse()
@@ -111,7 +106,6 @@ impl Config {
             auth_rate_limit_max_requests,
             auth_rate_limit_window_secs,
             payment_detector_poll_interval_secs,
-            invoice_match_window_secs,
             payment_detector_signature_limit,
         })
     }

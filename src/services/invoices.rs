@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use solana_sdk::{hash::hash, pubkey::Pubkey};
 use sqlx::PgPool;
@@ -206,25 +205,29 @@ pub async fn list_for_user(pool: &PgPool, user_id: Uuid) -> AppResult<Vec<Invoic
     Ok(invoices)
 }
 
-pub async fn find_pending_match_by_reference(
+pub async fn find_reference_match_for_target(
     pool: &PgPool,
+    usdc_ata: &str,
+    usdc_mint: &str,
     references: &[String],
-) -> AppResult<Option<InvoiceMatch>> {
+) -> AppResult<Option<ReferenceMatchCandidate>> {
     if references.is_empty() {
         return Ok(None);
     }
 
-    let invoice = sqlx::query_as::<_, InvoiceMatch>(
+    let invoice = sqlx::query_as::<_, ReferenceMatchCandidate>(
         r#"
-        SELECT id
+        SELECT id, reference_pubkey, amount_usdc, status
         FROM invoices
-        WHERE status = 'pending'
-          AND reference_pubkey IS NOT NULL
-          AND reference_pubkey = ANY($1)
-        ORDER BY created_at ASC
+        WHERE usdc_ata = $1
+          AND usdc_mint = $2
+          AND reference_pubkey = ANY($3)
+        ORDER BY created_at DESC
         LIMIT 1
         "#,
     )
+    .bind(usdc_ata)
+    .bind(usdc_mint)
     .bind(references)
     .fetch_optional(pool)
     .await?;
@@ -232,36 +235,24 @@ pub async fn find_pending_match_by_reference(
     Ok(invoice)
 }
 
-pub async fn find_pending_match(
+pub async fn find_reference_match_any(
     pool: &PgPool,
-    usdc_ata: &str,
-    usdc_mint: &str,
-    received_amount: Decimal,
-    window_start: DateTime<Utc>,
-    received_at: DateTime<Utc>,
-) -> AppResult<Option<InvoiceMatch>> {
-    let invoice = sqlx::query_as::<_, InvoiceMatch>(
+    references: &[String],
+) -> AppResult<Option<ReferenceMatchCandidate>> {
+    if references.is_empty() {
+        return Ok(None);
+    }
+
+    let invoice = sqlx::query_as::<_, ReferenceMatchCandidate>(
         r#"
-        SELECT id
+        SELECT id, reference_pubkey, amount_usdc, status
         FROM invoices
-        WHERE status = 'pending'
-          AND usdc_ata = $1
-          AND usdc_mint = $2
-          AND amount_usdc <= $3
-          AND created_at >= $4
-          AND created_at <= $5
-        ORDER BY
-          CASE WHEN amount_usdc = $3 THEN 0 ELSE 1 END,
-          amount_usdc DESC,
-          created_at ASC
+        WHERE reference_pubkey = ANY($1)
+        ORDER BY created_at DESC
         LIMIT 1
         "#,
     )
-    .bind(usdc_ata)
-    .bind(usdc_mint)
-    .bind(received_amount)
-    .bind(window_start)
-    .bind(received_at)
+    .bind(references)
     .fetch_optional(pool)
     .await?;
 
@@ -355,9 +346,12 @@ fn clean_optional(value: Option<String>) -> Option<String> {
     })
 }
 
-#[derive(sqlx::FromRow)]
-pub struct InvoiceMatch {
+#[derive(Clone, sqlx::FromRow)]
+pub struct ReferenceMatchCandidate {
     pub id: Uuid,
+    pub reference_pubkey: String,
+    pub amount_usdc: Decimal,
+    pub status: String,
 }
 
 #[derive(sqlx::FromRow)]

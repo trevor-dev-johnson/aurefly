@@ -3,23 +3,24 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
+use rust_decimal::Decimal;
 use serde::Deserialize;
 use sqlx::PgPool;
 use tokio::task::JoinHandle;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+use uuid::Uuid;
 
 use crate::{
     clients::solana::{SignatureInfo, SolanaRpcClient},
     error::{AppError, AppResult},
-    services::{invoices, payments},
+    services::{invoices, payments, unmatched_payments},
 };
 
 #[derive(Clone)]
 pub struct PaymentDetectorConfig {
     pub poll_interval: Duration,
-    pub match_window: ChronoDuration,
     pub signature_limit: usize,
 }
 
@@ -39,7 +40,7 @@ pub async fn run(
 
     tokio::join!(
         run_poll_loop(poll_pool, poll_solana, poll_config),
-        run_logs_manager_loop(pool, solana, config)
+        run_logs_manager_loop(pool, solana)
     );
 }
 
@@ -81,11 +82,7 @@ async fn run_poll_loop(
     }
 }
 
-async fn run_logs_manager_loop(
-    pool: PgPool,
-    solana: SolanaRpcClient,
-    config: PaymentDetectorConfig,
-) {
+async fn run_logs_manager_loop(pool: PgPool, solana: SolanaRpcClient) {
     let Some(ws_url) = solana.websocket_url().map(str::to_string) else {
         tracing::warn!("payment detector websocket disabled: unable to derive websocket URL from RPC URL");
         return;
@@ -124,7 +121,6 @@ async fn run_logs_manager_loop(
 
                     let task_pool = pool.clone();
                     let task_solana = solana.clone();
-                    let task_config = config.clone();
                     let ws_url = ws_url.clone();
                     let recipient_token_account = target.usdc_ata.clone();
                     let token_mint = target.usdc_mint.clone();
@@ -133,7 +129,6 @@ async fn run_logs_manager_loop(
                         run_logs_subscription_loop_for_target(
                             task_pool,
                             task_solana,
-                            task_config,
                             ws_url,
                             recipient_token_account,
                             token_mint,
@@ -156,7 +151,6 @@ async fn run_logs_manager_loop(
 async fn run_logs_subscription_loop_for_target(
     pool: PgPool,
     solana: SolanaRpcClient,
-    config: PaymentDetectorConfig,
     ws_url: String,
     recipient_token_account: String,
     token_mint: String,
@@ -167,7 +161,6 @@ async fn run_logs_subscription_loop_for_target(
         match consume_logs_subscription(
             &pool,
             &solana,
-            &config,
             &ws_url,
             &recipient_token_account,
             &token_mint,
@@ -235,7 +228,6 @@ async fn poll_once(
                 solana,
                 &target.usdc_ata,
                 &target.usdc_mint,
-                config,
                 &signature,
                 DetectionSource::Polling,
             )
@@ -251,7 +243,6 @@ async fn poll_once(
 async fn consume_logs_subscription(
     pool: &PgPool,
     solana: &SolanaRpcClient,
-    config: &PaymentDetectorConfig,
     ws_url: &str,
     recipient_token_account: &str,
     token_mint: &str,
@@ -328,7 +319,6 @@ async fn consume_logs_subscription(
                     solana,
                     recipient_token_account,
                     token_mint,
-                    config,
                     &signature,
                     DetectionSource::LogsSubscribe,
                 )
@@ -361,7 +351,6 @@ async fn process_signature(
     solana: &SolanaRpcClient,
     recipient_token_account: &str,
     token_mint: &str,
-    config: &PaymentDetectorConfig,
     signature: &SignatureInfo,
     detection_source: DetectionSource,
 ) -> AppResult<()> {
@@ -423,37 +412,46 @@ async fn process_signature(
         .finalized_at
         .or_else(|| timestamp_to_utc(signature.block_time))
         .unwrap_or_else(Utc::now);
-    let window_start = received_at - config.match_window;
+    let target_reference_match = invoices::find_reference_match_for_target(
+        pool,
+        recipient_token_account,
+        token_mint,
+        &transfer.account_keys,
+    )
+    .await?;
+    let any_reference_match = invoices::find_reference_match_any(pool, &transfer.account_keys).await?;
 
-    let match_result = if let Some(invoice) =
-        invoices::find_pending_match_by_reference(pool, &transfer.account_keys).await?
-    {
-        Some((invoice, "reference"))
-    } else {
-        invoices::find_pending_match(
-            pool,
-            recipient_token_account,
-            token_mint,
-            transfer.amount_usdc,
-            window_start,
-            received_at,
-        )
-        .await?
-        .map(|invoice| (invoice, "amount_fallback"))
-    };
+    let settlement = resolve_reference_settlement(
+        target_reference_match,
+        any_reference_match,
+        transfer.amount_usdc,
+    );
 
-    let Some((invoice, match_strategy)) = match_result else {
-        tracing::info!(
-            tx_signature = %signature.signature,
-            recipient_token_account = %recipient_token_account,
-            token_mint = %token_mint,
-            amount_usdc = %transfer.amount_usdc,
-            signal_source = detection_source.as_str(),
-            result = "ignored",
-            reason = "no_pending_invoice_match",
-            "detector found a finalized USDC transfer but no pending invoice match"
-        );
-        return Ok(());
+    let invoice = match settlement {
+        ReferenceSettlement::Matched(invoice) => invoice,
+        ReferenceSettlement::Unmatched {
+            reason,
+            matched_invoice_id,
+            reference_pubkey,
+            invoice_status,
+            expected_amount_usdc,
+        } => {
+            record_unmatched_payment(
+                pool,
+                &signature.signature,
+                recipient_token_account,
+                transfer.amount_usdc,
+                transfer.source_owner.as_deref(),
+                reference_pubkey.as_deref(),
+                reason,
+                matched_invoice_id,
+                invoice_status.as_deref(),
+                expected_amount_usdc,
+                detection_source,
+            )
+            .await?;
+            return Ok(());
+        }
     };
 
     let payment_result = payments::create(
@@ -485,7 +483,7 @@ async fn process_signature(
         tx_signature = %payment.tx_signature,
         invoice_id = %payment.invoice_id,
         amount_usdc = %payment.amount_usdc,
-        match_strategy,
+        match_strategy = "reference",
         signal_source = detection_source.as_str(),
         recipient_token_account = %payment.recipient_token_account,
         token_mint = %payment.token_mint,
@@ -496,6 +494,99 @@ async fn process_signature(
     );
 
     Ok(())
+}
+
+async fn record_unmatched_payment(
+    pool: &PgPool,
+    tx_signature: &str,
+    recipient_token_account: &str,
+    amount_usdc: Decimal,
+    sender_wallet: Option<&str>,
+    reference_pubkey: Option<&str>,
+    reason: UnmatchedReason,
+    matched_invoice_id: Option<Uuid>,
+    invoice_status: Option<&str>,
+    expected_amount_usdc: Option<Decimal>,
+    detection_source: DetectionSource,
+) -> AppResult<()> {
+    let inserted = unmatched_payments::create(
+        pool,
+        unmatched_payments::CreateUnmatchedPayment {
+            signature: tx_signature.to_string(),
+            destination_wallet: recipient_token_account.to_string(),
+            amount_usdc: amount_usdc.normalize().to_string(),
+            sender_wallet: sender_wallet.map(ToString::to_string),
+            reference_pubkey: reference_pubkey.map(ToString::to_string),
+            reason: reason.as_str().to_string(),
+        },
+    )
+    .await?;
+
+    tracing::warn!(
+        tx_signature = %tx_signature,
+        recipient_token_account = %recipient_token_account,
+        amount_usdc = %amount_usdc,
+        sender_wallet = ?sender_wallet,
+        reference_pubkey = ?reference_pubkey,
+        matched_invoice_id = ?matched_invoice_id,
+        invoice_status = ?invoice_status,
+        expected_amount_usdc = ?expected_amount_usdc,
+        signal_source = detection_source.as_str(),
+        result = "unmatched",
+        reason = reason.as_str(),
+        inserted,
+        "detector recorded unmatched finalized USDC transfer"
+    );
+
+    Ok(())
+}
+
+fn resolve_reference_settlement(
+    target_reference_match: Option<invoices::ReferenceMatchCandidate>,
+    any_reference_match: Option<invoices::ReferenceMatchCandidate>,
+    received_amount: Decimal,
+) -> ReferenceSettlement {
+    if let Some(invoice) = target_reference_match {
+        if invoice.status != "pending" {
+            return ReferenceSettlement::Unmatched {
+                reason: UnmatchedReason::DuplicateOrLatePayment,
+                matched_invoice_id: Some(invoice.id),
+                reference_pubkey: Some(invoice.reference_pubkey),
+                invoice_status: Some(invoice.status),
+                expected_amount_usdc: Some(invoice.amount_usdc),
+            };
+        }
+
+        if received_amount < invoice.amount_usdc {
+            return ReferenceSettlement::Unmatched {
+                reason: UnmatchedReason::AmountBelowInvoiceTotal,
+                matched_invoice_id: Some(invoice.id),
+                reference_pubkey: Some(invoice.reference_pubkey),
+                invoice_status: Some(invoice.status),
+                expected_amount_usdc: Some(invoice.amount_usdc),
+            };
+        }
+
+        return ReferenceSettlement::Matched(invoice);
+    }
+
+    if let Some(invoice) = any_reference_match {
+        return ReferenceSettlement::Unmatched {
+            reason: UnmatchedReason::BadReference,
+            matched_invoice_id: Some(invoice.id),
+            reference_pubkey: Some(invoice.reference_pubkey),
+            invoice_status: Some(invoice.status),
+            expected_amount_usdc: Some(invoice.amount_usdc),
+        };
+    }
+
+    ReferenceSettlement::Unmatched {
+        reason: UnmatchedReason::MissingReference,
+        matched_invoice_id: None,
+        reference_pubkey: None,
+        invoice_status: None,
+        expected_amount_usdc: None,
+    }
 }
 
 fn timestamp_to_utc(timestamp: Option<i64>) -> Option<DateTime<Utc>> {
@@ -571,6 +662,36 @@ impl DetectionSource {
     }
 }
 
+enum ReferenceSettlement {
+    Matched(invoices::ReferenceMatchCandidate),
+    Unmatched {
+        reason: UnmatchedReason,
+        matched_invoice_id: Option<Uuid>,
+        reference_pubkey: Option<String>,
+        invoice_status: Option<String>,
+        expected_amount_usdc: Option<Decimal>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum UnmatchedReason {
+    MissingReference,
+    BadReference,
+    DuplicateOrLatePayment,
+    AmountBelowInvoiceTotal,
+}
+
+impl UnmatchedReason {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::MissingReference => "missing_reference",
+            Self::BadReference => "bad_reference",
+            Self::DuplicateOrLatePayment => "duplicate_or_late_payment",
+            Self::AmountBelowInvoiceTotal => "amount_below_invoice_total",
+        }
+    }
+}
+
 struct LogsSubscribeAck {
     subscription_id: u64,
 }
@@ -609,4 +730,92 @@ struct LogsContext {
 struct LogsNotificationValue {
     signature: String,
     err: Option<serde_json::Value>,
+}
+
+#[cfg(test)]
+mod tests {
+    use rust_decimal::Decimal;
+    use uuid::Uuid;
+
+    use super::{resolve_reference_settlement, ReferenceSettlement, UnmatchedReason};
+    use crate::services::invoices::ReferenceMatchCandidate;
+
+    fn candidate(status: &str, amount_usdc: Decimal) -> ReferenceMatchCandidate {
+        ReferenceMatchCandidate {
+            id: Uuid::new_v4(),
+            reference_pubkey: Uuid::new_v4().simple().to_string(),
+            amount_usdc,
+            status: status.to_string(),
+        }
+    }
+
+    #[test]
+    fn missing_reference_stays_unmatched() {
+        let result = resolve_reference_settlement(None, None, Decimal::new(100, 2));
+        assert!(matches!(
+            result,
+            ReferenceSettlement::Unmatched {
+                reason: UnmatchedReason::MissingReference,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn wrong_reference_stays_unmatched() {
+        let result = resolve_reference_settlement(
+            None,
+            Some(candidate("pending", Decimal::new(100, 2))),
+            Decimal::new(100, 2),
+        );
+        assert!(matches!(
+            result,
+            ReferenceSettlement::Unmatched {
+                reason: UnmatchedReason::BadReference,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn underpaid_reference_stays_unmatched() {
+        let result = resolve_reference_settlement(
+            Some(candidate("pending", Decimal::new(250, 2))),
+            None,
+            Decimal::new(100, 2),
+        );
+        assert!(matches!(
+            result,
+            ReferenceSettlement::Unmatched {
+                reason: UnmatchedReason::AmountBelowInvoiceTotal,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn paid_or_expired_reference_is_late_payment() {
+        let result = resolve_reference_settlement(
+            Some(candidate("paid", Decimal::new(100, 2))),
+            None,
+            Decimal::new(100, 2),
+        );
+        assert!(matches!(
+            result,
+            ReferenceSettlement::Unmatched {
+                reason: UnmatchedReason::DuplicateOrLatePayment,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn pending_reference_with_sufficient_amount_matches() {
+        let result = resolve_reference_settlement(
+            Some(candidate("pending", Decimal::new(100, 2))),
+            None,
+            Decimal::new(125, 2),
+        );
+        assert!(matches!(result, ReferenceSettlement::Matched(_)));
+    }
 }

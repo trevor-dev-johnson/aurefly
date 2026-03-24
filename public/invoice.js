@@ -144,7 +144,7 @@ function renderInvoice(invoice) {
           ? "Transaction seen on Solana. Waiting for finalized confirmation."
           : awaitingWalletApproval
             ? "Open your wallet to approve the payment."
-            : "Use the button or QR to keep payment routing correct.";
+            : "Use the Aurefly payment link or QR. Manual transfers may not be credited automatically.";
 
   statusDetail.classList.toggle("hidden", invoice.status !== "paid");
   statusDetail.textContent = invoice.status === "paid" ? "Transaction confirmed on Solana." : "";
