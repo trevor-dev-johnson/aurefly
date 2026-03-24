@@ -147,12 +147,6 @@ Invoice responses now include:
 - `usdc_ata`: the USDC token account customers should pay
 - `usdc_mint`: the hardcoded mainnet USDC mint
 
-### Record a payment
+### Payment detection
 
-Recording a confirmed payment automatically marks the invoice as `paid` once the total confirmed amount meets or exceeds the invoice amount. Payment records also store the invoice's `recipient_token_account` and `token_mint` for reconciliation.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/payments \
-  -H "Content-Type: application/json" \
-  -d '{"invoice_id":"<INVOICE_ID>","amount_usdc":"49.99","tx_signature":"5BkZ8qYHn9m2...","payer_wallet_address":"7mB4Q7Q8zYfB..."}'
-```
+Confirmed payments are now recorded internally by the detector after on-chain verification. There is no public payment-ingestion endpoint.

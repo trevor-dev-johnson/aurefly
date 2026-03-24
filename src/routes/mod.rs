@@ -2,7 +2,6 @@ pub mod auth;
 pub mod health;
 pub mod invoices;
 pub mod me;
-pub mod payments;
 pub mod public;
 pub mod users;
 pub mod wallet_addresses;
@@ -20,5 +19,4 @@ pub fn router() -> Router<AppState> {
         .nest("/users", users::router())
         .nest("/wallet-addresses", wallet_addresses::router())
         .nest("/invoices", invoices::router())
-        .nest("/payments", payments::router())
 }
