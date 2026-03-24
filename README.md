@@ -150,6 +150,7 @@ curl -X POST http://localhost:8080/api/v1/me/invoices \
 Notes:
 
 - `amount_usdc` is accepted as a string to preserve decimal precision.
-- `payout_address` is required and must be the merchant's existing USDC associated token account (ATA).
+- `payout_address` is required and must be the merchant's existing mainnet USDC associated token account (ATA).
+- wallet pubkeys and non-USDC token accounts are rejected. If the merchant does not have a USDC ATA yet, they need to create one in their Solana wallet first.
 - invoice responses include `wallet_pubkey`, `usdc_ata`, `usdc_mint`, and `payment_uri`.
 - confirmed payments are recorded internally by the detector after on-chain verification. There is no public payment-ingestion endpoint.

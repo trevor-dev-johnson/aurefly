@@ -92,7 +92,7 @@ impl SolanaRpcClient {
             .await?
         else {
             return Err(AppError::Validation(
-                "payout_address must be an existing USDC associated token account (ATA)".to_string(),
+                "payout_address must be an existing mainnet USDC associated token account (ATA). Create a USDC token account in your wallet first, then paste that ATA instead of your wallet address.".to_string(),
             ));
         };
 
