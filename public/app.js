@@ -9,6 +9,7 @@ const authScreen = document.getElementById("auth-screen");
 const dashboardScreen = document.getElementById("dashboard-screen");
 const landingStatus = document.getElementById("landing-status");
 const getStartedButton = document.getElementById("get-started");
+const finalGetStartedButton = document.getElementById("final-get-started");
 const viewDemoButton = document.getElementById("view-demo");
 const authForm = document.getElementById("auth-form");
 const authToggle = document.getElementById("auth-toggle");
@@ -47,6 +48,12 @@ let activeInvoiceRequestId = null;
 getStartedButton.addEventListener("click", () => {
   showAuth("sign-up");
 });
+
+if (finalGetStartedButton) {
+  finalGetStartedButton.addEventListener("click", () => {
+    showAuth("sign-up");
+  });
+}
 
 viewDemoButton.addEventListener("click", async () => {
   landingStatus.textContent = "Opening demo invoice...";

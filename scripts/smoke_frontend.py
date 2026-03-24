@@ -93,6 +93,7 @@ def main():
         "root_page_has_steps": "Create invoice" in app_shell and "Share link" in app_shell and "Get paid" in app_shell,
         "root_page_has_trust": "Powered by Solana" in app_shell and "Non-custodial" in app_shell and "USDC only" in app_shell,
         "root_page_has_demo_cta": "Try Demo Invoice" in app_shell,
+        "root_page_has_final_cta": "Start accepting USDC in minutes." in app_shell and "Create your first invoice" in app_shell,
         "sign_in_email": sign_in["user"]["email"],
         "me_email": me["email"],
         "invoice_id": invoice["id"],
@@ -129,7 +130,7 @@ def main():
 
     if not summary["root_page_has_copy"]:
         raise SystemExit(f"landing page copy regression: {summary}")
-    if not summary["root_page_has_steps"] or not summary["root_page_has_trust"] or not summary["root_page_has_demo_cta"]:
+    if not summary["root_page_has_steps"] or not summary["root_page_has_trust"] or not summary["root_page_has_demo_cta"] or not summary["root_page_has_final_cta"]:
         raise SystemExit(f"landing page product framing regression: {summary}")
     if not summary["payment_uri_has_exact_reference"]:
         raise SystemExit(f"private payment URI missing exact reference: {summary}")

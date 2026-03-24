@@ -103,7 +103,7 @@ textarea:focus {
   max-width: 1160px;
   margin: 0 auto;
   display: grid;
-  gap: 28px;
+  gap: 0;
 }
 
 .landing-hero {
@@ -263,6 +263,7 @@ textarea:focus {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   padding: 20px;
+  margin-top: 112px;
 }
 
 .step-card {
@@ -289,26 +290,37 @@ textarea:focus {
   font-weight: 700;
 }
 
-.landing-proof {
+.landing-value,
+.landing-demo,
+.landing-final-cta {
   display: grid;
-  gap: 20px;
-  padding-top: 8px;
+  margin-top: 112px;
 }
 
-.landing-proof-copy {
+.landing-value-copy,
+.final-cta-card {
   display: grid;
   gap: 12px;
-  max-width: 760px;
 }
 
-.landing-proof-title {
+.landing-section-title {
   margin: 0;
   font-size: clamp(2rem, 4vw, 2.8rem);
   line-height: 1;
   letter-spacing: -0.04em;
 }
 
-.landing-proof-points {
+.landing-section-text,
+.demo-proof-copy {
+  margin: 0;
+  max-width: 700px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.landing-value-points,
+.landing-trust-grid,
+.proof-paid-list {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -327,55 +339,49 @@ textarea:focus {
   font-size: 0.9rem;
 }
 
-.landing-trust-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.landing-proof-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
-  gap: 20px;
-}
-
-.proof-invoice-card,
-.proof-paid-card {
-  padding: 24px;
-  display: grid;
-  gap: 16px;
-}
-
-.proof-card-amount {
-  font-size: clamp(2.2rem, 4vw, 3rem);
-  line-height: 0.95;
-  letter-spacing: -0.04em;
-}
-
-.proof-card-divider {
-  height: 1px;
-  background: rgba(154, 164, 175, 0.1);
-}
-
-.proof-paid-card {
-  align-content: center;
-  background: linear-gradient(180deg, rgba(34, 197, 94, 0.12), rgba(17, 22, 28, 0.94));
-  border-color: rgba(34, 197, 94, 0.22);
-}
-
-.proof-paid-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.proof-paid-list span {
+.proof-paid-list span,
+.demo-proof-meta span {
   padding: 8px 10px;
   border-radius: 999px;
   background: rgba(11, 15, 20, 0.46);
   border: 1px solid rgba(186, 247, 205, 0.18);
   color: #d7ffe4;
   font-size: 0.88rem;
+}
+
+.demo-proof-card {
+  width: 100%;
+  max-width: 560px;
+  justify-self: center;
+  padding: 32px;
+  display: grid;
+  gap: 14px;
+  text-align: left;
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.12), rgba(17, 22, 28, 0.96));
+  border-color: rgba(34, 197, 94, 0.22);
+  box-shadow: 0 24px 80px rgba(34, 197, 94, 0.14);
+}
+
+.demo-proof-amount {
+  font-size: clamp(2.6rem, 4vw, 3.6rem);
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
+.demo-proof-title {
+  font-size: 1.35rem;
+}
+
+.demo-proof-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.final-cta-card {
+  justify-items: center;
+  padding: 40px 32px;
+  text-align: center;
 }
 
 .landing-shell {
@@ -1027,12 +1033,7 @@ textarea:focus {
 
 @media (max-width: 920px) {
   .landing-hero,
-  .landing-proof-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .landing-hero-copy,
-  .landing-proof-copy {
+  .landing-hero-copy {
     max-width: none;
   }
 
@@ -1081,14 +1082,16 @@ textarea:focus {
   }
 
   .landing-hero-copy,
-  .landing-proof-copy {
+  .landing-value-copy,
+  .final-cta-card {
     text-align: center;
     justify-items: center;
   }
 
   .landing-trust-grid,
-  .landing-proof-points,
-  .proof-paid-list {
+  .landing-value-points,
+  .proof-paid-list,
+  .demo-proof-meta {
     justify-content: center;
   }
 
