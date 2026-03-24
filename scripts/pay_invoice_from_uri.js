@@ -5,32 +5,51 @@ const { Keypair, PublicKey, Connection, Transaction, TransactionInstruction } = 
 const API_BASE = process.argv[2] || "http://localhost:8080/api/v1";
 const APP_BASE = process.argv[3] || "http://localhost:8080";
 const SUBTOTAL_USDC = process.argv[4] || "0.020";
+const PAYOUT_ADDRESS = process.argv[5] || process.env.PAYOUT_ADDRESS || "AbC2BEBTyK45VHyeFodk7HBmeTzJBUoBxAvbt8nTXEUy";
 const KEYPAIR_PATH =
-  process.argv[5] || path.join(process.env.USERPROFILE || process.env.HOME || "", ".config", "solana", "id.json");
+  process.argv[6] || path.join(process.env.USERPROFILE || process.env.HOME || "", ".config", "solana", "id.json");
 const USDC_DECIMALS = 6;
 const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 const WAIT_TIMEOUT_MS = 120000;
 const WAIT_INTERVAL_MS = 2000;
+const PASSWORD = "pay-invoice-from-uri-password";
 
 async function main() {
   const rpcUrl = resolveRpcUrl(path.join(process.cwd(), ".env"));
   const rpcProvider = detectRpcProvider(rpcUrl);
   const payer = loadKeypair(KEYPAIR_PATH);
   const connection = new Connection(rpcUrl, "finalized");
+  const email = `uri-${Date.now()}@example.com`;
 
-  const user = await requestJson("POST", `${API_BASE}/users`, {
-    email: `helius-${Date.now()}@example.com`,
-    name: "Helius Clean Test",
+  const auth = await requestJson("POST", `${API_BASE}/auth/sign-up`, {
+    email,
+    password: PASSWORD,
   });
-  const invoice = await requestJson("POST", `${API_BASE}/invoices`, {
-    user_id: user.id,
-    amount_usdc: SUBTOTAL_USDC,
-  });
+  const invoice = await requestJsonWithToken(
+    "POST",
+    `${API_BASE}/me/invoices`,
+    {
+      amount_usdc: SUBTOTAL_USDC,
+      payout_address: PAYOUT_ADDRESS,
+      description: "URI payment smoke",
+    },
+    auth.token
+  );
   const payPageUrl = `${APP_BASE}/pay/${invoice.id}`;
   const payPageResponse = await fetch(payPageUrl);
+  const publicInvoice = await requestJson("GET", `${API_BASE}/public/invoices/${invoice.id}`);
+  if (!invoice.reference_pubkey || !invoice.payment_uri.includes(`&reference=${invoice.reference_pubkey}`)) {
+    throw new Error(`invoice payment URI is missing the required reference: ${invoice.payment_uri}`);
+  }
+  if (publicInvoice.payment_uri !== invoice.payment_uri) {
+    throw new Error("public invoice payment URI does not match the authenticated invoice URI");
+  }
+  if (payPageResponse.status !== 200) {
+    throw new Error(`pay page returned ${payPageResponse.status}`);
+  }
   const payment = await payInvoiceFromUri(connection, payer, invoice.payment_uri);
-  const observedInvoice = await requestJson("GET", `${API_BASE}/invoices/${invoice.id}?observe_payment=true`);
+  const observedInvoice = await requestJson("GET", `${API_BASE}/public/invoices/${invoice.id}?observe_payment=true`);
   const paidInvoice = await waitForInvoicePaid(invoice.id);
 
   const summary = {
@@ -40,7 +59,10 @@ async function main() {
     pay_page_status: payPageResponse.status,
     invoice_id: invoice.id,
     invoice_reference_pubkey: invoice.reference_pubkey,
+    public_invoice_reference_pubkey: publicInvoice.reference_pubkey,
     invoice_amount_usdc: invoice.amount_usdc,
+    payment_uri_has_exact_reference: invoice.payment_uri.includes(`&reference=${invoice.reference_pubkey}`),
+    public_payment_uri_matches_private: publicInvoice.payment_uri === invoice.payment_uri,
     tx_signature: payment.signature,
     finalized_in_secs: payment.finalizedInSecs,
     observed_status_before_paid: observedInvoice.status,
@@ -117,7 +139,7 @@ async function waitForInvoicePaid(invoiceId) {
   const deadline = startedAt + WAIT_TIMEOUT_MS;
 
   while (Date.now() < deadline) {
-    const invoice = await requestJson("GET", `${API_BASE}/invoices/${invoiceId}`);
+    const invoice = await requestJson("GET", `${API_BASE}/public/invoices/${invoiceId}`);
     if (invoice.status === "paid") {
       return {
         invoice,
@@ -277,9 +299,18 @@ function sleep(milliseconds) {
 }
 
 async function requestJson(method, url, body) {
+  return requestJsonWithToken(method, url, body, null);
+}
+
+async function requestJsonWithToken(method, url, body, token) {
+  const headers = body ? { "Content-Type": "application/json" } : {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const response = await fetch(url, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
 

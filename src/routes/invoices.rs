@@ -3,7 +3,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
-    error::AppResult,
+    error::{AppError, AppResult},
     models::invoice::Invoice,
     services::invoices,
     state::AppState,
@@ -42,14 +42,14 @@ impl InvoiceResponse {
     pub(crate) fn from_public_invoice(
         invoice: Invoice,
         payment_observation: Option<PaymentObservation>,
-    ) -> Self {
+    ) -> AppResult<Self> {
         Self::from_invoice(invoice, payment_observation, false)
     }
 
     pub(crate) fn from_private_invoice(
         invoice: Invoice,
         payment_observation: Option<PaymentObservation>,
-    ) -> Self {
+    ) -> AppResult<Self> {
         Self::from_invoice(invoice, payment_observation, true)
     }
 
@@ -57,8 +57,9 @@ impl InvoiceResponse {
         invoice: Invoice,
         payment_observation: Option<PaymentObservation>,
         include_client_email: bool,
-    ) -> Self {
-        let reference_pubkey = invoice.reference_pubkey.clone();
+    ) -> AppResult<Self> {
+        let reference_pubkey =
+            require_reference_pubkey(invoice.id, invoice.reference_pubkey.as_deref())?;
         let subtotal_usdc = invoice.subtotal_usdc.normalize().to_string();
         let platform_fee_usdc = invoice.platform_fee_usdc.normalize().to_string();
         let amount_usdc = invoice.amount_usdc.normalize().to_string();
@@ -70,7 +71,7 @@ impl InvoiceResponse {
             &invoice.usdc_ata,
             &amount_usdc,
             &invoice.usdc_mint,
-            reference_pubkey.as_deref(),
+            reference_pubkey,
         );
         let latest_payment_tx_url = invoice
             .latest_payment_tx_signature
@@ -82,10 +83,10 @@ impl InvoiceResponse {
             .as_ref()
             .map(|observation| build_explorer_tx_url(&observation.tx_signature));
 
-        Self {
+        Ok(Self {
             id: invoice.id,
             user_id: invoice.user_id,
-            reference_pubkey,
+            reference_pubkey: Some(reference_pubkey.to_string()),
             subtotal_usdc,
             platform_fee_usdc,
             platform_fee_bps: invoice.platform_fee_bps,
@@ -110,7 +111,7 @@ impl InvoiceResponse {
             latest_payment_tx_url,
             paid_at: invoice.paid_at,
             created_at: invoice.created_at,
-        }
+        })
     }
 }
 
@@ -122,16 +123,21 @@ pub(crate) fn build_payment_uri(
     usdc_ata: &str,
     amount_usdc: &str,
     usdc_mint: &str,
-    reference_pubkey: Option<&str>,
+    reference_pubkey: &str,
 ) -> String {
-    let mut payment_uri = format!("solana:{usdc_ata}?amount={amount_usdc}&spl-token={usdc_mint}");
+    format!("solana:{usdc_ata}?amount={amount_usdc}&spl-token={usdc_mint}&reference={reference_pubkey}")
+}
 
-    if let Some(reference_pubkey) = reference_pubkey {
-        payment_uri.push_str("&reference=");
-        payment_uri.push_str(reference_pubkey);
+pub(crate) fn require_reference_pubkey<'a>(
+    invoice_id: Uuid,
+    reference_pubkey: Option<&'a str>,
+) -> AppResult<&'a str> {
+    match reference_pubkey.map(str::trim) {
+        Some(value) if !value.is_empty() => Ok(value),
+        _ => Err(AppError::Internal(anyhow::anyhow!(
+            "invoice {invoice_id} is missing required Solana Pay reference"
+        ))),
     }
-
-    payment_uri
 }
 
 pub(crate) struct PaymentObservation {

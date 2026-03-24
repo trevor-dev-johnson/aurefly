@@ -104,6 +104,7 @@ def main():
         "invoice_usdc_ata": invoice["usdc_ata"],
         "payment_uri": invoice["payment_uri"],
         "payment_uri_has_reference": "&reference=" in invoice["payment_uri"],
+        "payment_uri_has_exact_reference": f"&reference={invoice['reference_pubkey']}" in invoice["payment_uri"],
         "private_invoice_uses_requested_payout": invoice["usdc_ata"] == PAYOUT_ADDRESS,
         "invoice_list_count": len(invoices),
         "private_invoice_has_client_email": any(
@@ -111,12 +112,31 @@ def main():
         ),
         "public_invoice_description": public_invoice.get("description"),
         "public_invoice_has_client_email": "client_email" in public_invoice,
+        "public_invoice_reference_pubkey": public_invoice.get("reference_pubkey"),
+        "public_invoice_payment_uri": public_invoice.get("payment_uri"),
+        "public_payment_uri_has_exact_reference": f"&reference={invoice['reference_pubkey']}" in public_invoice.get("payment_uri", ""),
+        "public_payment_uri_matches_private": public_invoice.get("payment_uri") == invoice["payment_uri"],
         "public_page_has_heading": "Pay with USDC (Solana)" in public_page and "Payments usually confirm in ~10-15 seconds." in public_page,
         "public_page_has_wallet_hint": "Pay using Phantom or any Solana wallet." in public_page,
         "qr_status": qr_status,
         "qr_content_type": qr_headers.get("Content-Type"),
         "qr_has_svg": "<svg" in qr_svg[:200],
     }
+
+    if not summary["root_page_has_copy"]:
+        raise SystemExit(f"landing page copy regression: {summary}")
+    if not summary["payment_uri_has_exact_reference"]:
+        raise SystemExit(f"private payment URI missing exact reference: {summary}")
+    if summary["public_invoice_reference_pubkey"] != invoice["reference_pubkey"]:
+        raise SystemExit(f"public invoice reference mismatch: {summary}")
+    if not summary["public_payment_uri_has_exact_reference"]:
+        raise SystemExit(f"public payment URI missing exact reference: {summary}")
+    if not summary["public_payment_uri_matches_private"]:
+        raise SystemExit(f"public/private payment URI mismatch: {summary}")
+    if not summary["public_page_has_heading"] or not summary["public_page_has_wallet_hint"]:
+        raise SystemExit(f"public pay page regression: {summary}")
+    if qr_status != 200 or "image/svg+xml" not in (summary["qr_content_type"] or "") or not summary["qr_has_svg"]:
+        raise SystemExit(f"QR generation regression: {summary}")
 
     json.dump(summary, sys.stdout, separators=(",", ":"))
 

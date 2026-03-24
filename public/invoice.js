@@ -34,6 +34,11 @@ payButton.addEventListener("click", (event) => {
   }
 
   event.preventDefault();
+  if (!invoiceHasRequiredReference(currentInvoice)) {
+    renderPaymentConfigurationError();
+    return;
+  }
+
   awaitingWalletApproval = true;
   extendFastPolling(FAST_POLL_EXTENSION_MS);
   statusText.textContent = "Open your wallet to approve the payment.";
@@ -93,6 +98,7 @@ function renderInvoice(invoice) {
   const feeAmount = Number(invoice.platform_fee_usdc || 0);
   const totalAmount = Number(invoice.amount_usdc || 0);
   const paidAmount = Number(invoice.paid_amount_usdc || 0);
+  const paymentRouteReady = invoiceHasRequiredReference(invoice);
   const hasDetectedPayment = paidAmount > 0 && invoice.status !== "paid";
   const hasObservedPayment = Boolean(invoice.payment_observed) && invoice.status !== "paid" && !hasDetectedPayment;
   const txUrl = invoice.latest_payment_tx_url || invoice.payment_observed_tx_url;
@@ -100,7 +106,7 @@ function renderInvoice(invoice) {
 
   document.title = invoice.status === "paid" ? "Aurefly Receipt" : "Aurefly Invoice";
   invoiceCard.classList.toggle("invoice-card-paid", invoice.status === "paid");
-  invoiceActionsPanel.classList.toggle("hidden", invoice.status === "paid");
+  invoiceActionsPanel.classList.toggle("hidden", invoice.status === "paid" || !paymentRouteReady);
   invoiceTotal.textContent = formatMoney(totalAmount);
   invoiceSubtotal.textContent = formatMoney(subtotalAmount);
   invoiceFee.textContent = feeAmount > 0 ? `Paid by merchant (${formatMoney(feeAmount)})` : "No fee";
@@ -108,9 +114,15 @@ function renderInvoice(invoice) {
   invoiceDescription.textContent = invoice.description || "";
   invoiceDescription.classList.toggle("hidden", !invoice.description);
   address.textContent = formatAddress(invoice.usdc_ata);
-  qr.src = `/api/v1/public/invoices/${invoice.id}/qr.svg`;
-  qr.hidden = false;
-  payButton.href = invoice.payment_uri;
+  if (paymentRouteReady) {
+    qr.src = `/api/v1/public/invoices/${invoice.id}/qr.svg`;
+    qr.hidden = false;
+    payButton.href = invoice.payment_uri;
+  } else {
+    qr.hidden = true;
+    qr.removeAttribute("src");
+    payButton.removeAttribute("href");
+  }
 
   if (!copyResetTimer) {
     copyAddressButton.textContent = "Copy Address";
@@ -123,6 +135,11 @@ function renderInvoice(invoice) {
     "status-panel-paid"
   );
   statePanel.classList.add(`status-panel-${variant}`);
+
+  if (!paymentRouteReady && invoice.status !== "paid") {
+    renderPaymentConfigurationError();
+    return;
+  }
 
   stateLabel.textContent =
     invoice.status === "paid"
@@ -156,6 +173,21 @@ function renderInvoice(invoice) {
   } else {
     invoiceTxLink.classList.add("hidden");
   }
+}
+
+function renderPaymentConfigurationError() {
+  statePanel.classList.remove(
+    "status-panel-waiting",
+    "status-panel-confirming",
+    "status-panel-detected",
+    "status-panel-paid"
+  );
+  statePanel.classList.add("status-panel-confirming");
+  stateLabel.textContent = "Payment unavailable";
+  statusSpinner.classList.add("hidden");
+  statusText.textContent = "This invoice is missing required payment routing metadata. Ask the merchant to regenerate it.";
+  statusDetail.classList.add("hidden");
+  invoiceTxLink.classList.add("hidden");
 }
 
 async function bootstrap() {
@@ -225,6 +257,21 @@ function formatAddress(value) {
 
 function addressTail(value) {
   return value.slice(-5);
+}
+
+function invoiceHasRequiredReference(invoice) {
+  if (!invoice || !invoice.reference_pubkey || !invoice.payment_uri) {
+    return false;
+  }
+
+  const [, query = ""] = String(invoice.payment_uri).split("?");
+  if (!query) {
+    return false;
+  }
+
+  return new URLSearchParams(query)
+    .getAll("reference")
+    .includes(String(invoice.reference_pubkey));
 }
 
 bootstrap();

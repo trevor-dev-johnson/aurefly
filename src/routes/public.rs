@@ -11,7 +11,9 @@ use uuid::Uuid;
 
 use crate::{
     error::{AppError, AppResult},
-    routes::invoices::{build_payment_uri, observe_invoice_payment, InvoiceResponse},
+    routes::invoices::{
+        build_payment_uri, observe_invoice_payment, require_reference_pubkey, InvoiceResponse,
+    },
     services::invoices,
     state::AppState,
 };
@@ -42,7 +44,7 @@ async fn get_public_invoice(
     Ok(Json(InvoiceResponse::from_public_invoice(
         invoice,
         payment_observation,
-    )))
+    )?))
 }
 
 async fn invoice_qr(
@@ -50,11 +52,12 @@ async fn invoice_qr(
     Path(invoice_id): Path<Uuid>,
 ) -> AppResult<impl IntoResponse> {
     let invoice = invoices::get(&state.pool, invoice_id).await?;
+    let reference_pubkey = require_reference_pubkey(invoice.id, invoice.reference_pubkey.as_deref())?;
     let payment_uri = build_payment_uri(
         &invoice.usdc_ata,
         &invoice.amount_usdc.normalize().to_string(),
         &invoice.usdc_mint,
-        invoice.reference_pubkey.as_deref(),
+        reference_pubkey,
     );
     let svg = QrCode::new(payment_uri.as_bytes())
         .map_err(|error| AppError::Internal(anyhow::anyhow!("failed to generate QR code: {error}")))?

@@ -39,7 +39,7 @@ async fn list_invoices(
         invoices
             .into_iter()
             .map(|invoice| InvoiceResponse::from_private_invoice(invoice, None))
-            .collect(),
+            .collect::<AppResult<Vec<_>>>()?,
     ))
 }
 
@@ -74,7 +74,7 @@ async fn create_invoice(
 
     Ok((
         StatusCode::CREATED,
-        Json(InvoiceResponse::from_private_invoice(invoice, None)),
+        Json(InvoiceResponse::from_private_invoice(invoice, None)?),
     ))
 }
 
