@@ -109,12 +109,6 @@ impl SolanaRpcClient {
         }
 
         let derived = UsdcSettlement::from_wallet_pubkey(payout_address)?;
-        if !self.account_exists(&derived.usdc_ata).await? {
-            return Err(AppError::Validation(
-                "You don't have a USDC account yet. Create a USDC token account in your wallet first, then paste either your wallet address or that USDC account address.".to_string(),
-            ));
-        }
-
         Ok(ResolvedUsdcSettlement {
             wallet_pubkey: derived.wallet_pubkey,
             usdc_ata: derived.usdc_ata,

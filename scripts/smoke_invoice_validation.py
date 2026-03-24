@@ -130,6 +130,12 @@ def main() -> None:
         "wallet_pubkey_invoice_id": wallet_error.get("id"),
         "wallet_pubkey_usdc_ata": wallet_error.get("usdc_ata"),
         "wallet_pubkey_matches_expected_ata": wallet_error.get("usdc_ata") == VALID_PAYOUT_ADDRESS,
+        "missing_ata_invoice_id": missing_ata_error.get("id"),
+        "missing_ata_wallet_pubkey": missing_ata_error.get("wallet_pubkey"),
+        "missing_ata_usdc_ata": missing_ata_error.get("usdc_ata"),
+        "missing_ata_wallet_matches_input": missing_ata_error.get("wallet_pubkey") == missing_ata_wallet,
+        "missing_ata_derived_account_present": bool(missing_ata_error.get("usdc_ata")),
+        "missing_ata_derived_account_differs_from_wallet": missing_ata_error.get("usdc_ata") != missing_ata_wallet,
         "valid_payout_invoice_id": valid_invoice.get("id"),
         "valid_payout_usdc_ata": valid_invoice.get("usdc_ata"),
         "valid_payout_matches_input": valid_invoice.get("usdc_ata") == VALID_PAYOUT_ADDRESS,
@@ -141,8 +147,10 @@ def main() -> None:
         raise SystemExit(f"invalid payout validation failed: {summary}")
     if wallet_status != 201 or not summary["wallet_pubkey_matches_expected_ata"]:
         raise SystemExit(f"wallet pubkey resolution failed: {summary}")
-    if missing_ata_status != 400 or "don't have a USDC account yet" not in (summary["missing_ata_error"] or ""):
-        raise SystemExit(f"missing ATA guidance failed: {summary}")
+    if missing_ata_status != 201 or not summary["missing_ata_wallet_matches_input"]:
+        raise SystemExit(f"wallet without existing ATA should still be accepted: {summary}")
+    if not summary["missing_ata_derived_account_present"] or not summary["missing_ata_derived_account_differs_from_wallet"]:
+        raise SystemExit(f"wallet without existing ATA did not return a usable derived USDC account: {summary}")
     if valid_status != 201 or not summary["valid_payout_matches_input"]:
         raise SystemExit(f"valid payout flow failed: {summary}")
 
