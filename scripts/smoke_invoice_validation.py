@@ -12,6 +12,11 @@ VALID_PAYOUT_ADDRESS = (
     if len(sys.argv) > 2
     else os.environ.get("PAYOUT_ADDRESS", "AbC2BEBTyK45VHyeFodk7HBmeTzJBUoBxAvbt8nTXEUy")
 )
+WALLET_PUBKEY = (
+    sys.argv[3]
+    if len(sys.argv) > 3
+    else os.environ.get("WALLET_PUBKEY", "3TLjMkmmBCnF7uWJ6DQY3Uc2ARw14PrRQ3vWQmgJ4hUM")
+)
 PASSWORD = "validation-smoke-password"
 
 
@@ -75,6 +80,15 @@ def main() -> None:
         },
         token,
     )
+    wallet_status, wallet_error = authed_request(
+        "POST",
+        "/me/invoices",
+        {
+            "amount_usdc": "10.00",
+            "payout_address": WALLET_PUBKEY,
+        },
+        token,
+    )
     valid_status, valid_invoice = authed_request(
         "POST",
         "/me/invoices",
@@ -90,6 +104,8 @@ def main() -> None:
         "missing_payout_error": missing_error.get("error"),
         "invalid_payout_status": invalid_status,
         "invalid_payout_error": invalid_error.get("error"),
+        "wallet_pubkey_status": wallet_status,
+        "wallet_pubkey_error": wallet_error.get("error"),
         "valid_payout_status": valid_status,
         "valid_payout_invoice_id": valid_invoice.get("id"),
         "valid_payout_usdc_ata": valid_invoice.get("usdc_ata"),
@@ -100,6 +116,8 @@ def main() -> None:
         raise SystemExit(f"missing payout validation failed: {summary}")
     if invalid_status != 400 or summary["invalid_payout_error"] != "invalid payout_address":
         raise SystemExit(f"invalid payout validation failed: {summary}")
+    if wallet_status != 400 or "USDC associated token account" not in (summary["wallet_pubkey_error"] or ""):
+        raise SystemExit(f"wallet pubkey validation failed: {summary}")
     if valid_status != 201 or not summary["valid_payout_matches_input"]:
         raise SystemExit(f"valid payout flow failed: {summary}")
 

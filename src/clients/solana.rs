@@ -87,33 +87,27 @@ impl SolanaRpcClient {
         let payout_address = payout_address.trim();
         parse_pubkey(payout_address, "payout_address")?;
 
-        if let Some(wallet_pubkey) = self
+        let Some(wallet_pubkey) = self
             .get_usdc_token_account_owner(payout_address)
             .await?
-        {
-            return Ok(ResolvedUsdcSettlement {
-                wallet_pubkey,
-                usdc_ata: payout_address.to_string(),
-                usdc_mint: MAINNET_USDC_MINT.to_string(),
-            });
+        else {
+            return Err(AppError::Validation(
+                "payout_address must be an existing USDC associated token account (ATA)".to_string(),
+            ));
+        };
+
+        let derived = UsdcSettlement::from_wallet_pubkey(&wallet_pubkey)?;
+        if payout_address != derived.usdc_ata {
+            return Err(AppError::Validation(
+                "payout_address must be the merchant's USDC associated token account (ATA), not a wallet pubkey or non-ATA token account".to_string(),
+            ));
         }
 
-        let derived = UsdcSettlement::from_wallet_pubkey(payout_address)?;
-        if self
-            .get_usdc_token_account_owner(&derived.usdc_ata)
-            .await?
-            .is_some()
-        {
-            return Ok(ResolvedUsdcSettlement {
-                wallet_pubkey: derived.wallet_pubkey,
-                usdc_ata: derived.usdc_ata,
-                usdc_mint: derived.usdc_mint,
-            });
-        }
-
-        Err(AppError::Validation(
-            "payout_address must be an existing USDC token account or a wallet with an existing USDC associated token account".to_string(),
-        ))
+        Ok(ResolvedUsdcSettlement {
+            wallet_pubkey,
+            usdc_ata: derived.usdc_ata,
+            usdc_mint: derived.usdc_mint,
+        })
     }
 
     pub async fn ensure_associated_token_account(
@@ -280,6 +274,20 @@ impl SolanaRpcClient {
         let Some(account_info) = rpc.result.and_then(|result| result.value) else {
             return Ok(None);
         };
+
+        let token_program_id = token_program_id()?.to_string();
+        let owner_program = account_info
+            .get("owner")
+            .and_then(|value| value.as_str());
+        let parsed_type = account_info
+            .get("data")
+            .and_then(|value| value.get("parsed"))
+            .and_then(|value| value.get("type"))
+            .and_then(|value| value.as_str());
+
+        if owner_program != Some(token_program_id.as_str()) || parsed_type != Some("account") {
+            return Ok(None);
+        }
 
         let Some(info) = account_info
             .get("data")
