@@ -7,6 +7,7 @@ use axum::{
 use serde::{Deserialize, Deserializer};
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
+use uuid::Uuid;
 
 use crate::{
     auth::require_user,
@@ -23,6 +24,7 @@ pub fn router() -> Router<AppState> {
 #[derive(Debug, Deserialize)]
 struct CreateInvoiceRequest {
     amount_usdc: String,
+    client_request_id: Option<String>,
     description: Option<String>,
     client_email: Option<String>,
     #[serde(default, deserialize_with = "deserialize_nullable_string")]
@@ -58,12 +60,23 @@ async fn create_invoice(
 
     Pubkey::from_str(payout_address)
         .map_err(|_| AppError::Validation("invalid payout_address".to_string()))?;
+    let client_request_id = payload
+        .client_request_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| {
+            Uuid::parse_str(value)
+                .map_err(|_| AppError::Validation("invalid client_request_id".to_string()))
+        })
+        .transpose()?;
 
     let invoice = invoices::create(
         &state.pool,
         &state.solana,
         CreateInvoice {
             user_id: user.id,
+            client_request_id,
             amount_usdc: payload.amount_usdc,
             description: payload.description,
             client_email: payload.client_email,

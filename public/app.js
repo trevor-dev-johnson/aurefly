@@ -34,10 +34,13 @@ const invoiceSummarySubtotal = document.getElementById("invoice-summary-subtotal
 const invoiceSummaryFeeRow = document.getElementById("invoice-summary-fee-row");
 const invoiceSummaryFee = document.getElementById("invoice-summary-fee");
 const invoiceSummaryTotal = document.getElementById("invoice-summary-total");
+const invoiceSubmitButton = invoiceForm.querySelector('button[type="submit"]');
 
 let authMode = "sign-up";
 let currentUser = null;
 let refreshTimer = null;
+let createInvoiceInFlight = false;
+let activeInvoiceRequestId = null;
 
 getStartedButton.addEventListener("click", () => {
   showAuth("sign-up");
@@ -126,26 +129,39 @@ closeInvoiceModalButton.addEventListener("click", () => {
 
 invoiceModal.addEventListener("click", (event) => {
   if (event.target === invoiceModal) {
-    closeInvoiceModal();
+    closeInvoiceModal(true);
   }
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
+  if (event.key === "Escape" && !createInvoiceInFlight) {
     closeInvoiceModal();
   }
 });
 
 invoiceAmountInput.addEventListener("input", updateInvoiceSummary);
+invoiceAmountInput.addEventListener("input", resetInvoiceRequestId);
+invoiceDescriptionInput.addEventListener("input", resetInvoiceRequestId);
+invoiceClientEmailInput.addEventListener("input", resetInvoiceRequestId);
+invoicePayoutAddressInput.addEventListener("input", resetInvoiceRequestId);
 
 invoiceForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (createInvoiceInFlight) {
+    return;
+  }
+
+  createInvoiceInFlight = true;
+  setInvoiceSubmitting(true);
   invoiceStatus.textContent = "Creating invoice...";
 
   try {
+    const clientRequestId = activeInvoiceRequestId || createClientRequestId();
+    activeInvoiceRequestId = clientRequestId;
     const invoice = await apiRequest("/me/invoices", {
       method: "POST",
       body: JSON.stringify({
+        client_request_id: clientRequestId,
         amount_usdc: invoiceAmountInput.value,
         description: invoiceDescriptionInput.value,
         client_email: invoiceClientEmailInput.value,
@@ -156,6 +172,7 @@ invoiceForm.addEventListener("submit", async (event) => {
 
     closeInvoiceModal();
     invoiceForm.reset();
+    activeInvoiceRequestId = null;
     updateInvoiceSummary();
     await loadInvoices();
 
@@ -172,6 +189,9 @@ invoiceForm.addEventListener("submit", async (event) => {
       return;
     }
     invoiceStatus.textContent = error.message;
+  } finally {
+    createInvoiceInFlight = false;
+    setInvoiceSubmitting(false);
   }
 });
 
@@ -281,12 +301,19 @@ function stopRefresh() {
 }
 
 function openInvoiceModal() {
+  activeInvoiceRequestId = createClientRequestId();
   invoiceModal.classList.remove("hidden");
+  setInvoiceSubmitting(false);
   updateInvoiceSummary();
   window.setTimeout(() => invoiceAmountInput.focus(), 0);
 }
 
-function closeInvoiceModal() {
+function closeInvoiceModal(force = false) {
+  if (createInvoiceInFlight && !force) {
+    return;
+  }
+
+  activeInvoiceRequestId = null;
   invoiceModal.classList.add("hidden");
 }
 
@@ -358,6 +385,26 @@ function shortAddress(value) {
   }
 
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
+function resetInvoiceRequestId() {
+  if (!createInvoiceInFlight) {
+    activeInvoiceRequestId = null;
+  }
+}
+
+function setInvoiceSubmitting(submitting) {
+  invoiceSubmitButton.disabled = submitting;
+  closeInvoiceModalButton.disabled = submitting;
+  invoiceSubmitButton.textContent = submitting ? "Creating..." : "Create Invoice";
+}
+
+function createClientRequestId() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+
+  return `req-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function getToken() {

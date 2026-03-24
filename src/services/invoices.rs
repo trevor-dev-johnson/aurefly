@@ -15,6 +15,7 @@ pub const PLATFORM_FEE_BPS: i16 = 0;
 
 pub struct CreateInvoice {
     pub user_id: Uuid,
+    pub client_request_id: Option<Uuid>,
     pub amount_usdc: String,
     pub description: Option<String>,
     pub client_email: Option<String>,
@@ -49,6 +50,7 @@ pub async fn create(
         INSERT INTO invoices (
             id,
             user_id,
+            client_request_id,
             reference_pubkey,
             subtotal_usdc,
             platform_fee_usdc,
@@ -62,7 +64,9 @@ pub async fn create(
             usdc_ata,
             usdc_mint
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, $11, $12, $13)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12, $13, $14)
+        ON CONFLICT (user_id, client_request_id)
+        DO UPDATE SET client_request_id = EXCLUDED.client_request_id
         RETURNING
             id,
             user_id,
@@ -85,6 +89,7 @@ pub async fn create(
     )
     .bind(invoice_id)
     .bind(input.user_id)
+    .bind(input.client_request_id)
     .bind(&reference_pubkey)
     .bind(subtotal)
     .bind(platform_fee)
