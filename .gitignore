@@ -3,3 +3,5 @@ target/
 .sqlx/
 postgres_data/
 data/
+__pycache__/
+*.pyc

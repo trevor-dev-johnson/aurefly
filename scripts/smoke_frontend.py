@@ -6,6 +6,10 @@ import urllib.request
 
 
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8080")
+PAYOUT_ADDRESS = os.environ.get(
+    "PAYOUT_ADDRESS",
+    "AbC2BEBTyK45VHyeFodk7HBmeTzJBUoBxAvbt8nTXEUy",
+)
 
 
 def request(path, method="GET", body=None, headers=None):
@@ -64,6 +68,7 @@ def main():
             "amount_usdc": "1.234",
             "description": "Design work for homepage",
             "client_email": "client@example.com",
+            "payout_address": PAYOUT_ADDRESS,
         },
         headers=auth_headers,
     )
@@ -72,7 +77,7 @@ def main():
     _, _, body = request("/api/v1/me/invoices", headers=auth_headers)
     invoices = json.loads(body)
 
-    _, _, body = request(f"/api/v1/invoices/{invoice['id']}")
+    _, _, body = request(f"/api/v1/public/invoices/{invoice['id']}")
     public_invoice = json.loads(body)
 
     _, _, body = request(f"/pay/{invoice['id']}")
@@ -96,8 +101,10 @@ def main():
         "invoice_description": invoice.get("description"),
         "invoice_client_email": invoice.get("client_email"),
         "invoice_paid_amount_usdc": invoice["paid_amount_usdc"],
+        "invoice_usdc_ata": invoice["usdc_ata"],
         "payment_uri": invoice["payment_uri"],
         "payment_uri_has_reference": "&reference=" in invoice["payment_uri"],
+        "private_invoice_uses_requested_payout": invoice["usdc_ata"] == PAYOUT_ADDRESS,
         "invoice_list_count": len(invoices),
         "private_invoice_has_client_email": any(
             row["id"] == invoice["id"] and row.get("client_email") == "client@example.com" for row in invoices

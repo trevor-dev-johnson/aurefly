@@ -4,11 +4,13 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
+use solana_sdk::pubkey::Pubkey;
+use std::str::FromStr;
 
 use crate::{
     auth::require_user,
-    error::AppResult,
+    error::{AppError, AppResult},
     routes::invoices::InvoiceResponse,
     services::invoices::{self, CreateInvoice},
     state::AppState,
@@ -23,7 +25,8 @@ struct CreateInvoiceRequest {
     amount_usdc: String,
     description: Option<String>,
     client_email: Option<String>,
-    payout_address: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_nullable_string")]
+    payout_address: String,
 }
 
 async fn list_invoices(
@@ -46,16 +49,25 @@ async fn create_invoice(
     Json(payload): Json<CreateInvoiceRequest>,
 ) -> AppResult<(StatusCode, Json<InvoiceResponse>)> {
     let user = require_user(&headers, &state).await?;
+    let payout_address = payload.payout_address.trim();
+    if payout_address.is_empty() {
+        return Err(AppError::Validation(
+            "payout_address is required".to_string(),
+        ));
+    }
+
+    Pubkey::from_str(payout_address)
+        .map_err(|_| AppError::Validation("invalid payout_address".to_string()))?;
+
     let invoice = invoices::create(
         &state.pool,
         &state.solana,
-        &state.treasury,
         CreateInvoice {
             user_id: user.id,
             amount_usdc: payload.amount_usdc,
             description: payload.description,
             client_email: payload.client_email,
-            payout_address: payload.payout_address,
+            payout_address: payout_address.to_string(),
         },
     )
     .await?;
@@ -64,4 +76,11 @@ async fn create_invoice(
         StatusCode::CREATED,
         Json(InvoiceResponse::from_private_invoice(invoice, None)),
     ))
+}
+
+fn deserialize_nullable_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(Option::<String>::deserialize(deserializer)?.unwrap_or_default())
 }

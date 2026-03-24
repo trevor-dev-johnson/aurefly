@@ -121,7 +121,7 @@ async fn main() -> anyhow::Result<()> {
         config.auth_rate_limit_max_requests,
         Duration::from_secs(config.auth_rate_limit_window_secs),
     );
-    let state = AppState::new(pool, solana, treasury, auth_rate_limiter);
+    let state = AppState::new(pool, solana, auth_rate_limiter);
     let app = app::build(state, config.allowed_origins.clone());
     let listener = TcpListener::bind(config.socket_addr())
         .await

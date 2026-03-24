@@ -10,7 +10,6 @@ use crate::{
     clients::solana::SolanaRpcClient,
     error::{AppError, AppResult},
     models::invoice::Invoice,
-    treasury::TreasuryWallet,
 };
 
 pub const PLATFORM_FEE_BPS: i16 = 0;
@@ -20,13 +19,12 @@ pub struct CreateInvoice {
     pub amount_usdc: String,
     pub description: Option<String>,
     pub client_email: Option<String>,
-    pub payout_address: Option<String>,
+    pub payout_address: String,
 }
 
 pub async fn create(
     pool: &PgPool,
     solana: &SolanaRpcClient,
-    treasury: &TreasuryWallet,
     input: CreateInvoice,
 ) -> AppResult<Invoice> {
     let invoice_id = Uuid::new_v4();
@@ -36,14 +34,14 @@ pub async fn create(
     let reference_pubkey = invoice_reference_pubkey(invoice_id);
     let description = clean_optional(input.description);
     let client_email = clean_optional(input.client_email);
-    let settlement = match clean_optional(input.payout_address) {
-        Some(payout_address) => solana.resolve_usdc_settlement_target(&payout_address).await?,
-        None => crate::clients::solana::ResolvedUsdcSettlement {
-            wallet_pubkey: treasury.wallet_pubkey.clone(),
-            usdc_ata: treasury.usdc_ata.clone(),
-            usdc_mint: treasury.usdc_mint.clone(),
-        },
-    };
+    let payout_address = input.payout_address.trim();
+    if payout_address.is_empty() {
+        return Err(AppError::Validation(
+            "payout_address is required".to_string(),
+        ));
+    }
+
+    let settlement = solana.resolve_usdc_settlement_target(payout_address).await?;
 
     let invoice = sqlx::query_as::<_, Invoice>(
         r#"

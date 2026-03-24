@@ -144,12 +144,12 @@ Use the returned bearer token from sign-up or sign-in.
 curl -X POST http://localhost:8080/api/v1/me/invoices \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <TOKEN>" \
-  -d '{"amount_usdc":"49.99","description":"Design work","client_email":"client@example.com","payout_address":"<OPTIONAL_REAL_USDC_DESTINATION>"}'
+  -d '{"amount_usdc":"49.99","description":"Design work","client_email":"client@example.com","payout_address":"<REAL_USDC_DESTINATION>"}'
 ```
 
 Notes:
 
 - `amount_usdc` is accepted as a string to preserve decimal precision.
-- `payout_address` is optional. If omitted, the configured treasury destination is used.
+- `payout_address` is required and must resolve to an existing USDC token account or a wallet with an existing USDC associated token account.
 - invoice responses include `wallet_pubkey`, `usdc_ata`, `usdc_mint`, and `payment_uri`.
 - confirmed payments are recorded internally by the detector after on-chain verification. There is no public payment-ingestion endpoint.

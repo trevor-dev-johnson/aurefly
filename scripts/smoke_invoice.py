@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import urllib.request
 import uuid
@@ -6,7 +7,7 @@ import uuid
 
 BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080/api/v1"
 AMOUNT_USDC = sys.argv[2] if len(sys.argv) > 2 else "49.99"
-PAYOUT_ADDRESS = sys.argv[3] if len(sys.argv) > 3 else None
+PAYOUT_ADDRESS = sys.argv[3] if len(sys.argv) > 3 else os.environ.get("PAYOUT_ADDRESS")
 PASSWORD = "smoke-test-password"
 
 
@@ -36,6 +37,11 @@ def authed_request(method: str, path: str, payload: dict | None = None, token: s
 
 
 def main() -> None:
+    if not PAYOUT_ADDRESS:
+        raise SystemExit(
+            "usage: py scripts\\smoke_invoice.py <base_url> <amount_usdc> <payout_address>"
+        )
+
     email = f"merchant+{uuid.uuid4().hex[:8]}@example.com"
     auth = request(
         "POST",
@@ -53,7 +59,7 @@ def main() -> None:
         "/me/invoices",
         {
             "amount_usdc": AMOUNT_USDC,
-            **({"payout_address": PAYOUT_ADDRESS} if PAYOUT_ADDRESS else {}),
+            "payout_address": PAYOUT_ADDRESS,
         },
         token,
     )
