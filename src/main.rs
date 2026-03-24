@@ -6,6 +6,7 @@ mod db;
 mod detector;
 mod error;
 mod models;
+mod rate_limit;
 mod routes;
 mod solana;
 mod services;
@@ -20,6 +21,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 use crate::{
     clients::solana::SolanaRpcClient, config::Config, detector::PaymentDetectorConfig,
+    rate_limit::AuthRateLimiter,
     services::invoices,
     state::AppState,
     treasury::{load_existing_keypair, load_existing_keypair_from_json, TreasuryWallet},
@@ -115,8 +117,12 @@ async fn main() -> anyhow::Result<()> {
         },
     ));
 
-    let state = AppState::new(pool, solana, treasury);
-    let app = app::build(state);
+    let auth_rate_limiter = AuthRateLimiter::new(
+        config.auth_rate_limit_max_requests,
+        Duration::from_secs(config.auth_rate_limit_window_secs),
+    );
+    let state = AppState::new(pool, solana, treasury, auth_rate_limiter);
+    let app = app::build(state, config.allowed_origins.clone());
     let listener = TcpListener::bind(config.socket_addr())
         .await
         .context("failed to bind TCP listener")?;

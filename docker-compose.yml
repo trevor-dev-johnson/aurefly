@@ -28,10 +28,13 @@ services:
       DATABASE_URL: postgres://solana_pay:solana_pay@db:5432/solana_pay
       HOST: 0.0.0.0
       PORT: 8080
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://aurefly.com,https://www.aurefly.com}
       SOLANA_RPC_URL: ${SOLANA_RPC_URL:-}
       HELIUS_API_KEY: ${HELIUS_API_KEY:-}
       TREASURY_WALLET_PATH: /data/treasury-wallet.json
       SOLANA_FEE_PAYER_PATH: /solana/id.json
+      AUTH_RATE_LIMIT_MAX_REQUESTS: ${AUTH_RATE_LIMIT_MAX_REQUESTS:-10}
+      AUTH_RATE_LIMIT_WINDOW_SECS: ${AUTH_RATE_LIMIT_WINDOW_SECS:-60}
       PAYMENT_DETECTOR_POLL_INTERVAL_SECS: 10
       INVOICE_MATCH_WINDOW_SECS: 86400
       PAYMENT_DETECTOR_SIGNATURE_LIMIT: 25

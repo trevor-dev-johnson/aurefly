@@ -65,8 +65,10 @@ impl From<User> for UserResponse {
 
 async fn sign_up(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<SignUpRequest>,
 ) -> AppResult<(StatusCode, Json<AuthResponse>)> {
+    enforce_auth_rate_limit(&state, &headers, "sign-up").await?;
     let session = auth::register(
         &state.pool,
         RegisterUser {
@@ -88,8 +90,10 @@ async fn sign_up(
 
 async fn sign_in(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<SignInRequest>,
 ) -> AppResult<Json<AuthResponse>> {
+    enforce_auth_rate_limit(&state, &headers, "sign-in").await?;
     let session = auth::sign_in(
         &state.pool,
         SignInUser {
@@ -120,4 +124,32 @@ async fn log_out(
     let token = require_bearer_token(&headers)?;
     auth::revoke_token(&state.pool, &token).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn enforce_auth_rate_limit(
+    state: &AppState,
+    headers: &HeaderMap,
+    operation: &str,
+) -> AppResult<()> {
+    let client_ip = client_ip(headers);
+    let key = format!("auth:{operation}:{client_ip}");
+    state.auth_rate_limiter.check(&key, operation).await
+}
+
+fn client_ip(headers: &HeaderMap) -> String {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(',').next())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            headers
+                .get("x-real-ip")
+                .and_then(|value| value.to_str().ok())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or("unknown")
+        .to_string()
 }

@@ -62,6 +62,7 @@ Minimum production variables:
 ```bash
 DATABASE_URL=<Railway Postgres connection string>
 PORT=8080
+ALLOWED_ORIGINS=https://aurefly.com,https://www.aurefly.com
 HELIUS_API_KEY=<your-helius-key>
 TREASURY_WALLET_JSON=<contents of data/treasury-wallet.json>
 SOLANA_FEE_PAYER_JSON=<contents of your funded Solana keypair json>
@@ -76,6 +77,12 @@ Recommended Railway flow:
 4. Set the environment variables above on the app service.
 5. Generate a public domain for the app service.
 6. Verify `/api/v1/health` and then create a live invoice.
+
+Security defaults in this repo:
+
+- CORS is restricted to `ALLOWED_ORIGINS`.
+- auth endpoints have a basic in-memory per-client rate limit.
+- internal server errors are logged server-side but returned to clients as a generic `internal server error`.
 
 ## Dedicated RPC
 
@@ -113,6 +120,7 @@ The public API surface is intentionally small:
 
 - `POST /api/v1/auth/sign-up`
 - `POST /api/v1/auth/sign-in`
+- `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
 - `GET /api/v1/health`
 - `GET /api/v1/public/invoices/{invoice_id}`

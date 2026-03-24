@@ -1,5 +1,5 @@
 use axum::{
-    http::StatusCode,
+    http::{header::RETRY_AFTER, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -48,15 +48,36 @@ impl IntoResponse for AppError {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Validation(_) => StatusCode::BAD_REQUEST,
             Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
-            Self::RateLimited { .. } => StatusCode::SERVICE_UNAVAILABLE,
+            Self::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
+        let client_error = match &self {
+            Self::NotFound => self.to_string(),
+            Self::Validation(_) => self.to_string(),
+            Self::Unauthorized(_) => self.to_string(),
+            Self::RateLimited {
+                retry_after_secs, ..
+            } => format!("too many requests; retry after {retry_after_secs}s"),
+            Self::Internal(error) => {
+                tracing::error!(error = ?error, "internal server error");
+                "internal server error".to_string()
+            }
+        };
+
         let body = Json(json!({
-            "error": self.to_string(),
+            "error": client_error,
         }));
 
-        (status, body).into_response()
+        let mut response = (status, body).into_response();
+        if let Some(retry_after) = self.retry_after() {
+            let seconds = retry_after.as_secs().max(1).to_string();
+            if let Ok(value) = HeaderValue::from_str(&seconds) {
+                response.headers_mut().insert(RETRY_AFTER, value);
+            }
+        }
+
+        response
     }
 }
 
