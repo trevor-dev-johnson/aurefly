@@ -1,39 +1,13 @@
-use axum::{
-    extract::{Path, Query, State},
-    http::StatusCode,
-    routing::{get, post},
-    Json, Router,
-};
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
     error::AppResult,
     models::invoice::Invoice,
-    services::invoices::{self, CreateInvoice},
+    services::invoices,
     state::AppState,
 };
-
-pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/", post(create_invoice).get(list_invoices))
-        .route("/{invoice_id}", get(get_invoice))
-}
-
-#[derive(Debug, Deserialize)]
-struct CreateInvoiceRequest {
-    user_id: Uuid,
-    amount_usdc: String,
-    description: Option<String>,
-    client_email: Option<String>,
-    payout_address: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct GetInvoiceQuery {
-    observe_payment: Option<bool>,
-}
 
 #[derive(Debug, Serialize)]
 pub(crate) struct InvoiceResponse {
@@ -160,62 +134,11 @@ pub(crate) fn build_payment_uri(
     payment_uri
 }
 
-async fn create_invoice(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateInvoiceRequest>,
-) -> AppResult<(StatusCode, Json<InvoiceResponse>)> {
-    let invoice = invoices::create(
-        &state.pool,
-        &state.solana,
-        &state.treasury,
-        CreateInvoice {
-            user_id: payload.user_id,
-            amount_usdc: payload.amount_usdc,
-            description: payload.description,
-            client_email: payload.client_email,
-            payout_address: payload.payout_address,
-        },
-    )
-    .await?;
-
-    Ok((
-        StatusCode::CREATED,
-        Json(InvoiceResponse::from_public_invoice(invoice, None)),
-    ))
-}
-
-async fn list_invoices(State(state): State<AppState>) -> AppResult<Json<Vec<InvoiceResponse>>> {
-    let invoices = invoices::list(&state.pool).await?;
-    let response = invoices
-        .into_iter()
-        .map(|invoice| InvoiceResponse::from_public_invoice(invoice, None))
-        .collect();
-    Ok(Json(response))
-}
-
-async fn get_invoice(
-    State(state): State<AppState>,
-    Path(invoice_id): Path<Uuid>,
-    Query(query): Query<GetInvoiceQuery>,
-) -> AppResult<Json<InvoiceResponse>> {
-    let invoice = invoices::get(&state.pool, invoice_id).await?;
-    let payment_observation = if query.observe_payment.unwrap_or(false) {
-        observe_invoice_payment(&state, &invoice).await?
-    } else {
-        None
-    };
-
-    Ok(Json(InvoiceResponse::from_public_invoice(
-        invoice,
-        payment_observation,
-    )))
-}
-
 pub(crate) struct PaymentObservation {
-    tx_signature: String,
+    pub(crate) tx_signature: String,
 }
 
-async fn observe_invoice_payment(
+pub(crate) async fn observe_invoice_payment(
     state: &AppState,
     invoice: &Invoice,
 ) -> AppResult<Option<PaymentObservation>> {

@@ -3,8 +3,6 @@ pub mod health;
 pub mod invoices;
 pub mod me;
 pub mod public;
-pub mod users;
-pub mod wallet_addresses;
 
 use axum::Router;
 
@@ -16,7 +14,4 @@ pub fn router() -> Router<AppState> {
         .nest("/health", health::router())
         .nest("/me", me::router())
         .nest("/public", public::router())
-        .nest("/users", users::router())
-        .nest("/wallet-addresses", wallet_addresses::router())
-        .nest("/invoices", invoices::router())
 }

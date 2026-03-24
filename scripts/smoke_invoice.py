@@ -7,15 +7,22 @@ import uuid
 BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080/api/v1"
 AMOUNT_USDC = sys.argv[2] if len(sys.argv) > 2 else "49.99"
 PAYOUT_ADDRESS = sys.argv[3] if len(sys.argv) > 3 else None
+PASSWORD = "smoke-test-password"
 
 
 def request(method: str, path: str, payload: dict | None = None) -> dict:
+    return authed_request(method, path, payload, None)
+
+
+def authed_request(method: str, path: str, payload: dict | None = None, token: str | None = None) -> dict:
     body = None
     headers = {}
 
     if payload is not None:
         body = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
 
     req = urllib.request.Request(
         url=f"{BASE_URL}{path}",
@@ -30,31 +37,36 @@ def request(method: str, path: str, payload: dict | None = None) -> dict:
 
 def main() -> None:
     email = f"merchant+{uuid.uuid4().hex[:8]}@example.com"
-    user = request(
+    auth = request(
         "POST",
-        "/users",
+        "/auth/sign-up",
         {
             "email": email,
+            "password": PASSWORD,
             "name": "Test Merchant",
         },
     )
-    invoice = request(
+    user = auth["user"]
+    token = auth["token"]
+    invoice = authed_request(
         "POST",
-        "/invoices",
+        "/me/invoices",
         {
-            "user_id": user["id"],
             "amount_usdc": AMOUNT_USDC,
             **({"payout_address": PAYOUT_ADDRESS} if PAYOUT_ADDRESS else {}),
         },
+        token,
     )
-    fetched_invoice = request("GET", f"/invoices/{invoice['id']}")
+    fetched_invoice = authed_request("GET", f"/me/invoices", None, token)
 
     print(
         json.dumps(
             {
                 "user": user,
                 "created_invoice": invoice,
-                "fetched_invoice": fetched_invoice,
+                "fetched_invoice": next(
+                    item for item in fetched_invoice if item["id"] == invoice["id"]
+                ),
             },
             indent=2,
         )

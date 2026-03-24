@@ -44,31 +44,8 @@ getStartedButton.addEventListener("click", () => {
 });
 
 viewDemoButton.addEventListener("click", async () => {
-  landingStatus.textContent = "Opening demo...";
-
-  try {
-    const invoices = await apiRequest("/invoices");
-    const demoInvoice =
-      invoices.find((invoice) => invoice.status === "pending") ||
-      invoices.find((invoice) => invoice.status === "paid") ||
-      invoices[0];
-
-    if (!demoInvoice) {
-      landingStatus.textContent = "No demo invoice is available yet.";
-      return;
-    }
-
-    const target = `/pay/${demoInvoice.id}`;
-    const opened = window.open(target, "_blank", "noopener,noreferrer");
-    if (!opened) {
-      window.location.href = target;
-      return;
-    }
-
-    landingStatus.textContent = "";
-  } catch (error) {
-    landingStatus.textContent = error.message;
-  }
+  landingStatus.textContent = "";
+  showAuth("sign-in");
 });
 
 authToggle.addEventListener("click", () => {

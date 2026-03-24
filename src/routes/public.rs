@@ -1,22 +1,48 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::header::CONTENT_TYPE,
     response::IntoResponse,
     routing::get,
-    Router,
+    Json, Router,
 };
 use qrcode::{render::svg, QrCode};
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
     error::{AppError, AppResult},
-    routes::invoices::build_payment_uri,
+    routes::invoices::{build_payment_uri, observe_invoice_payment, InvoiceResponse},
     services::invoices,
     state::AppState,
 };
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/invoices/{invoice_id}/qr.svg", get(invoice_qr))
+    Router::new()
+        .route("/invoices/{invoice_id}", get(get_public_invoice))
+        .route("/invoices/{invoice_id}/qr.svg", get(invoice_qr))
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct GetInvoiceQuery {
+    observe_payment: Option<bool>,
+}
+
+async fn get_public_invoice(
+    State(state): State<AppState>,
+    Path(invoice_id): Path<Uuid>,
+    Query(query): Query<GetInvoiceQuery>,
+) -> AppResult<Json<InvoiceResponse>> {
+    let invoice = invoices::get(&state.pool, invoice_id).await?;
+    let payment_observation = if query.observe_payment.unwrap_or(false) {
+        observe_invoice_payment(&state, &invoice).await?
+    } else {
+        None
+    };
+
+    Ok(Json(InvoiceResponse::from_public_invoice(
+        invoice,
+        payment_observation,
+    )))
 }
 
 async fn invoice_qr(

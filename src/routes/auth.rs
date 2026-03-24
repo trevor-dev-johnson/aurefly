@@ -5,13 +5,15 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
+use uuid::Uuid;
 
 use crate::{
     auth::require_user,
     error::AppResult,
-    routes::users::UserResponse,
     services::auth::{self, RegisterUser, SignInUser},
+    models::user::User,
     state::AppState,
 };
 
@@ -39,6 +41,25 @@ struct SignInRequest {
 struct AuthResponse {
     token: String,
     user: UserResponse,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct UserResponse {
+    id: Uuid,
+    email: String,
+    name: Option<String>,
+    created_at: DateTime<Utc>,
+}
+
+impl From<User> for UserResponse {
+    fn from(user: User) -> Self {
+        Self {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            created_at: user.created_at,
+        }
+    }
 }
 
 async fn sign_up(

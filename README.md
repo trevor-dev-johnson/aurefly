@@ -1,16 +1,12 @@
 # Aurefly
 
-Aurefly is a Stripe-like Solana payments backend. This repo ships a Rust API, Postgres, SQL migrations, and a basic service layout for users, wallet addresses, invoices, and payments.
+Aurefly is a USDC invoicing app on Solana. This repo ships a Rust `axum` backend, Postgres, SQL migrations, and a server-rendered static frontend for sign-in, dashboard, invoice creation, and public pay pages.
 
-Invoices now resolve to a real USDC destination flow:
-
-- the API generates or loads one local treasury wallet
-- it derives that wallet's USDC associated token account (ATA)
-- every invoice stores and returns the treasury wallet pubkey, the USDC ATA, and the hardcoded mainnet USDC mint
+Invoices are created by authenticated users under `/api/v1/me/invoices`. Each invoice stores a real USDC settlement target, returns a Solana Pay URI with a per-invoice reference, and is marked paid only by the on-chain detector.
 
 ## Stack
 
-- Rust + Axum for the HTTP API
+- Rust + Axum for the HTTP API and static frontend hosting
 - SQLx for Postgres access and migrations
 - Postgres 16 via Docker Compose
 
@@ -42,11 +38,11 @@ docker compose up --build
 curl http://localhost:8080/api/v1/health
 ```
 
-4. On first boot the API creates `data/treasury-wallet.json` and reuses it on later restarts.
+4. On first boot the API creates `data/treasury-wallet.json` and reuses it on later restarts if you do not provide wallet secrets via env vars.
 
 5. The API pre-creates the treasury wallet's USDC ATA at startup. In Docker Compose it uses your local Solana keypair at `%USERPROFILE%\.config\solana\id.json` as the ATA fee payer so the treasury wallet can stay unfunded.
 
-6. Invoice responses return the treasury wallet pubkey and the USDC ATA to pay.
+6. Open the app at `http://localhost:8080`, create an account, and create invoices from the dashboard.
 
 ## Hosted Deployment
 
@@ -111,42 +107,41 @@ SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=your-helius-api-key
 - Before any invoice is created, startup ensures the treasury USDC ATA exists on-chain.
 - If the treasury wallet is new, set `SOLANA_FEE_PAYER_PATH` to a funded Solana keypair that can pay the one-time ATA rent.
 
-## Phase 1 API
+## API Overview
 
-### Create a user
+The public API surface is intentionally small:
+
+- `POST /api/v1/auth/sign-up`
+- `POST /api/v1/auth/sign-in`
+- `GET /api/v1/auth/me`
+- `GET /api/v1/health`
+- `GET /api/v1/public/invoices/{invoice_id}`
+- `GET /api/v1/public/invoices/{invoice_id}/qr.svg`
+
+Authenticated invoice management lives under `/api/v1/me/invoices`.
+
+### Sign up
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/users \
+curl -X POST http://localhost:8080/api/v1/auth/sign-up \
   -H "Content-Type: application/json" \
-  -d '{"email":"merchant@example.com","name":"Merchant"}'
+  -d '{"email":"merchant@example.com","password":"correct horse battery staple","name":"Merchant"}'
 ```
-
-### Create a wallet address
-
-```bash
-curl -X POST http://localhost:8080/api/v1/wallet-addresses \
-  -H "Content-Type: application/json" \
-  -d '{"user_id":"<USER_ID>","wallet_pubkey":"<REAL_SOLANA_WALLET_PUBKEY>","label":"Primary treasury"}'
-```
-
-The API derives the wallet's USDC ATA and stores both the owner pubkey and the USDC token account.
 
 ### Create an invoice
 
-`amount_usdc` is accepted as a string to preserve decimal precision. The API does not accept a destination address here anymore; it uses the configured treasury wallet and returns its derived USDC ATA.
+Use the returned bearer token from sign-up or sign-in.
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/invoices \
+curl -X POST http://localhost:8080/api/v1/me/invoices \
   -H "Content-Type: application/json" \
-  -d '{"user_id":"<USER_ID>","amount_usdc":"49.99"}'
+  -H "Authorization: Bearer <TOKEN>" \
+  -d '{"amount_usdc":"49.99","description":"Design work","client_email":"client@example.com","payout_address":"<OPTIONAL_REAL_USDC_DESTINATION>"}'
 ```
 
-Invoice responses now include:
+Notes:
 
-- `wallet_pubkey`: the treasury wallet owner
-- `usdc_ata`: the USDC token account customers should pay
-- `usdc_mint`: the hardcoded mainnet USDC mint
-
-### Payment detection
-
-Confirmed payments are now recorded internally by the detector after on-chain verification. There is no public payment-ingestion endpoint.
+- `amount_usdc` is accepted as a string to preserve decimal precision.
+- `payout_address` is optional. If omitted, the configured treasury destination is used.
+- invoice responses include `wallet_pubkey`, `usdc_ata`, `usdc_mint`, and `payment_uri`.
+- confirmed payments are recorded internally by the detector after on-chain verification. There is no public payment-ingestion endpoint.

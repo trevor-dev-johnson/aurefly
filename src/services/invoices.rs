@@ -103,51 +103,6 @@ pub async fn create(
     Ok(invoice)
 }
 
-pub async fn list(pool: &PgPool) -> AppResult<Vec<Invoice>> {
-    let invoices = sqlx::query_as::<_, Invoice>(
-        r#"
-        SELECT
-            invoices.id,
-            invoices.user_id,
-            invoices.reference_pubkey,
-            invoices.subtotal_usdc,
-            invoices.platform_fee_usdc,
-            invoices.platform_fee_bps,
-            invoices.amount_usdc,
-            invoices.description,
-            invoices.client_email,
-            invoices.status,
-            invoices.wallet_pubkey,
-            invoices.usdc_ata,
-            invoices.usdc_mint,
-            invoices.paid_at,
-            COALESCE((
-                SELECT SUM(payments.amount_usdc)
-                FROM payments
-                WHERE payments.invoice_id = invoices.id
-                  AND payments.status = 'confirmed'
-            ), 0::numeric) AS paid_amount_usdc,
-            (
-                SELECT payments.tx_signature
-                FROM payments
-                WHERE payments.invoice_id = invoices.id
-                  AND payments.status = 'confirmed'
-                ORDER BY
-                    COALESCE(payments.finalized_at, payments.created_at) DESC,
-                    payments.created_at DESC
-                LIMIT 1
-            ) AS latest_payment_tx_signature,
-            invoices.created_at
-        FROM invoices
-        ORDER BY invoices.created_at DESC
-        "#,
-    )
-    .fetch_all(pool)
-    .await?;
-
-    Ok(invoices)
-}
-
 pub async fn get(pool: &PgPool, invoice_id: Uuid) -> AppResult<Invoice> {
     let invoice = sqlx::query_as::<_, Invoice>(
         r#"

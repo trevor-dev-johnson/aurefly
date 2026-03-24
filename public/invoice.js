@@ -68,7 +68,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 async function loadInvoice() {
-  const response = await fetch(`/api/v1/invoices/${invoiceId}?observe_payment=true`);
+  const response = await fetch(`/api/v1/public/invoices/${invoiceId}?observe_payment=true`);
   const invoice = await response.json();
 
   if (!response.ok) {
