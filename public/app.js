@@ -12,8 +12,13 @@ const getStartedButton = document.getElementById("get-started");
 const heroGetStartedButton = document.getElementById("hero-get-started");
 const finalGetStartedButton = document.getElementById("final-get-started");
 const landingSignInButton = document.getElementById("landing-sign-in");
+const mobileLandingSignInButton = document.getElementById("mobile-landing-sign-in");
+const mobileGetStartedButton = document.getElementById("mobile-get-started");
 const footerSignInButton = document.getElementById("footer-sign-in");
 const viewDemoButton = document.getElementById("view-demo");
+const landingNavToggle = document.getElementById("landing-nav-toggle");
+const landingMobileMenu = document.getElementById("landing-mobile-menu");
+const landingMobileMenuCloseTargets = document.querySelectorAll("[data-mobile-menu-close]");
 const authForm = document.getElementById("auth-form");
 const authToggle = document.getElementById("auth-toggle");
 const authSwitchLabel = document.getElementById("auth-switch-label");
@@ -81,11 +86,35 @@ if (landingSignInButton) {
   });
 }
 
+if (mobileLandingSignInButton) {
+  mobileLandingSignInButton.addEventListener("click", () => {
+    showAuth("sign-in");
+  });
+}
+
+if (mobileGetStartedButton) {
+  mobileGetStartedButton.addEventListener("click", () => {
+    showAuth("sign-up");
+  });
+}
+
 if (footerSignInButton) {
   footerSignInButton.addEventListener("click", () => {
     showAuth("sign-in");
   });
 }
+
+if (landingNavToggle && landingMobileMenu) {
+  landingNavToggle.addEventListener("click", () => {
+    toggleLandingMenu();
+  });
+}
+
+landingMobileMenuCloseTargets.forEach((link) => {
+  link.addEventListener("click", () => {
+    closeLandingMenu();
+  });
+});
 
 viewDemoButton.addEventListener("click", async () => {
   landingStatus.textContent = "Opening demo invoice...";
@@ -207,8 +236,18 @@ invoiceModal.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeLandingMenu();
+  }
+
   if (event.key === "Escape" && !createInvoiceInFlight) {
     closeInvoiceModal();
+  }
+});
+
+window.addEventListener("resize", () => {
+  if (window.innerWidth > 820) {
+    closeLandingMenu();
   }
 });
 
@@ -289,6 +328,7 @@ function renderAuthMode() {
 }
 
 function showScreen(screen) {
+  closeLandingMenu();
   landingScreen.classList.toggle("hidden", screen !== "landing");
   authScreen.classList.toggle("hidden", screen !== "auth");
   dashboardScreen.classList.toggle("hidden", screen !== "dashboard");
@@ -298,6 +338,25 @@ function showAuth(mode) {
   authMode = mode;
   renderAuthMode();
   showScreen("auth");
+}
+
+function toggleLandingMenu() {
+  if (!landingNavToggle || !landingMobileMenu) {
+    return;
+  }
+
+  const nextExpanded = landingNavToggle.getAttribute("aria-expanded") !== "true";
+  landingNavToggle.setAttribute("aria-expanded", String(nextExpanded));
+  landingMobileMenu.classList.toggle("is-open", nextExpanded);
+}
+
+function closeLandingMenu() {
+  if (!landingNavToggle || !landingMobileMenu) {
+    return;
+  }
+
+  landingNavToggle.setAttribute("aria-expanded", "false");
+  landingMobileMenu.classList.remove("is-open");
 }
 
 async function showDashboard() {

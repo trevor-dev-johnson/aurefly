@@ -4,13 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Aurefly</title>
-    <link rel="icon" type="image/svg+xml" href="/static/aurefly-logo.svg?v=20260325c" />
+    <link rel="icon" type="image/svg+xml" href="/static/aurefly-logo.svg?v=20260325d" />
     <link rel="preconnect" href="https://api.fontshare.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/styles.css?v=20260325c" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260325d" />
   </head>
   <body class="app-body">
     <main class="app-root">
@@ -33,7 +33,32 @@
             <button class="nav-link-button" id="landing-sign-in" type="button">Sign in</button>
             <button class="button button-primary" id="get-started" type="button">Get Started</button>
           </div>
+
+          <button
+            class="landing-nav-toggle"
+            id="landing-nav-toggle"
+            type="button"
+            aria-label="Open navigation menu"
+            aria-expanded="false"
+            aria-controls="landing-mobile-menu"
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
         </header>
+
+        <div class="landing-mobile-menu" id="landing-mobile-menu" aria-label="Mobile navigation">
+          <nav class="landing-mobile-links">
+            <a href="#features" data-mobile-menu-close>Features</a>
+            <a href="#how-it-works" data-mobile-menu-close>How It Works</a>
+            <a href="#final-cta" data-mobile-menu-close>Pricing</a>
+          </nav>
+          <div class="landing-mobile-actions">
+            <button class="nav-link-button" id="mobile-landing-sign-in" type="button">Sign in</button>
+            <button class="button button-primary" id="mobile-get-started" type="button">Get Started</button>
+          </div>
+        </div>
 
         <section class="landing-hero">
           <div class="landing-hero-copy">
@@ -400,6 +425,6 @@
       </section>
     </div>
 
-    <script src="/static/app.js?v=20260325c" defer></script>
+    <script src="/static/app.js?v=20260325d" defer></script>
   </body>
 </html>
