@@ -43,8 +43,10 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(ellipse 70% 40% at 50% -10%, rgba(57, 255, 122, 0.07) 0%, transparent 60%),
-    radial-gradient(circle at 80% 20%, rgba(79, 143, 255, 0.08), transparent 26%),
+    radial-gradient(ellipse 78% 44% at 50% -8%, rgba(57, 255, 122, 0.08) 0%, transparent 62%),
+    radial-gradient(circle at 82% 18%, rgba(79, 143, 255, 0.12), transparent 24%),
+    radial-gradient(circle at 18% 72%, rgba(57, 255, 122, 0.06), transparent 24%),
+    linear-gradient(180deg, #040608 0%, #070a10 48%, #050506 100%),
     var(--bg);
   color: var(--text-primary);
   font-family: var(--font-sans);
@@ -98,6 +100,7 @@ textarea:focus {
 .app-root,
 .invoice-root {
   min-height: 100vh;
+  width: 100%;
 }
 
 .button,
@@ -237,7 +240,7 @@ textarea:focus {
 .landing-screen {
   position: relative;
   overflow: hidden;
-  padding: 0 24px 80px;
+  padding: 0 32px 112px;
 }
 
 .landing-bg-orb,
@@ -297,7 +300,14 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  min-height: 88px;
+  min-height: 80px;
+  margin-top: 20px;
+  padding: 14px 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(7, 10, 14, 0.72);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.26);
 }
 
 .landing-nav-brand,
@@ -336,11 +346,11 @@ textarea:focus {
 
 .landing-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(340px, 440px);
-  gap: 48px;
-  align-items: center;
-  min-height: calc(100vh - 88px);
-  padding: 48px 0 72px;
+  justify-items: center;
+  gap: 36px;
+  min-height: calc(100vh - 124px);
+  padding: 72px 0 64px;
+  text-align: center;
 }
 
 .landing-hero-copy,
@@ -361,6 +371,9 @@ textarea:focus {
   background: none;
   border: 0;
   box-shadow: none;
+  max-width: 780px;
+  display: grid;
+  justify-items: center;
 }
 
 .landing-badge,
@@ -411,22 +424,23 @@ textarea:focus {
 }
 
 .landing-title {
-  max-width: 10ch;
-  font-size: clamp(3.4rem, 7vw, 5.7rem);
+  max-width: 12ch;
+  font-size: clamp(3.7rem, 8vw, 6.2rem);
 }
 
 .landing-copy {
-  max-width: 38rem;
+  max-width: 44rem;
   margin: 24px 0 0;
   color: var(--text-secondary);
-  font-size: 1.1rem;
-  line-height: 1.8;
+  font-size: 1.12rem;
+  line-height: 1.85;
 }
 
 .landing-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   margin-top: 32px;
 }
@@ -438,6 +452,7 @@ textarea:focus {
 .landing-trust-row {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 12px;
   margin-top: 36px;
 }
@@ -453,13 +468,51 @@ textarea:focus {
 
 .landing-preview {
   position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.landing-preview::before {
+  content: "";
+  position: absolute;
+  inset: auto 50% -36px;
+  width: min(84vw, 700px);
+  height: 220px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(79, 143, 255, 0.16) 0%, rgba(57, 255, 122, 0.12) 32%, transparent 72%);
+  filter: blur(40px);
+  opacity: 0.95;
 }
 
 .landing-preview-card {
   position: relative;
   overflow: hidden;
-  padding: 28px;
-  border-radius: var(--radius-xl);
+  width: min(100%, 640px);
+  padding: 32px;
+  border-radius: 30px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.035)),
+    rgba(7, 10, 14, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 24px 80px rgba(0, 0, 0, 0.46),
+    0 20px 80px rgba(79, 143, 255, 0.08);
+  transform: perspective(1800px) rotateX(9deg);
+  transform-origin: center top;
+}
+
+.landing-preview-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(140deg, rgba(57, 255, 122, 0.06), transparent 38%),
+    linear-gradient(320deg, rgba(79, 143, 255, 0.08), transparent 34%);
+  pointer-events: none;
 }
 
 .landing-preview-topline,
@@ -513,7 +566,7 @@ textarea:focus {
 
 .landing-preview-amount strong {
   display: block;
-  font-size: clamp(2.9rem, 5vw, 4rem);
+  font-size: clamp(3.1rem, 5vw, 4.3rem);
   line-height: 0.95;
   letter-spacing: -0.05em;
 }
@@ -574,12 +627,19 @@ textarea:focus {
 .how-strip,
 .feature-section,
 .landing-cta-band {
-  padding-top: 120px;
+  padding-top: 132px;
 }
 
 .section-heading,
 .feature-heading {
   margin-bottom: 64px;
+}
+
+.section-heading {
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
 }
 
 .section-kicker {
@@ -620,6 +680,14 @@ textarea:focus {
 
 .how-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015)),
+    rgba(8, 10, 14, 0.72);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.24);
 }
 
 .how-card,
@@ -628,6 +696,17 @@ textarea:focus {
   overflow: hidden;
   padding: 24px;
   border-radius: var(--radius-xl);
+}
+
+.how-card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 30px 28px 32px;
+}
+
+.how-card + .how-card {
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .how-card-top {
@@ -682,10 +761,20 @@ textarea:focus {
 
 .feature-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
 }
 
 .feature-card-wide {
   grid-column: span 2;
+}
+
+.feature-card {
+  min-height: 210px;
+  padding: 28px;
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02)),
+    rgba(8, 10, 14, 0.78);
 }
 
 .feature-card-green::before,
@@ -748,7 +837,14 @@ textarea:focus {
 .landing-cta-inner {
   max-width: 720px;
   margin: 0 auto;
+  padding: 40px 28px;
   text-align: center;
+  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),
+    rgba(8, 10, 14, 0.74);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.24);
 }
 
 .landing-footer {
@@ -759,6 +855,39 @@ textarea:focus {
   padding: 64px 0 16px;
   color: var(--text-secondary);
   font-size: 0.9rem;
+}
+
+.landing-hero-copy > * {
+  animation: fade-up 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.landing-badge { animation-delay: 60ms; }
+.landing-title { animation-delay: 120ms; }
+.landing-copy { animation-delay: 180ms; }
+.landing-actions { animation-delay: 240ms; }
+.landing-trust-row { animation-delay: 300ms; }
+.landing-preview-card { animation: preview-rise 760ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 220ms; }
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes preview-rise {
+  from {
+    opacity: 0;
+    transform: perspective(1800px) rotateX(9deg) translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(1800px) rotateX(9deg) translateY(0);
+  }
 }
 
 .auth-screen,
@@ -1598,12 +1727,17 @@ textarea:focus {
 
 @media (max-width: 1100px) {
   .landing-hero {
-    grid-template-columns: 1fr;
     min-height: auto;
+    padding-top: 56px;
   }
 
   .landing-preview {
-    max-width: 460px;
+    max-width: 100%;
+  }
+
+  .landing-preview-card {
+    transform: none;
+    animation: fade-up 760ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   .feature-heading {
@@ -1633,7 +1767,8 @@ textarea:focus {
   .landing-nav {
     flex-wrap: wrap;
     justify-content: center;
-    padding-top: 16px;
+    padding: 16px;
+    border-radius: 24px;
   }
 
   .landing-nav-links {
@@ -1665,6 +1800,15 @@ textarea:focus {
 
   .landing-footer {
     padding-top: 48px;
+  }
+
+  .landing-title {
+    max-width: 11ch;
+    font-size: clamp(2.8rem, 16vw, 4.2rem);
+  }
+
+  .landing-copy {
+    font-size: 1rem;
   }
 
   .landing-actions,
