@@ -9,7 +9,10 @@ const authScreen = document.getElementById("auth-screen");
 const dashboardScreen = document.getElementById("dashboard-screen");
 const landingStatus = document.getElementById("landing-status");
 const getStartedButton = document.getElementById("get-started");
+const heroGetStartedButton = document.getElementById("hero-get-started");
 const finalGetStartedButton = document.getElementById("final-get-started");
+const landingSignInButton = document.getElementById("landing-sign-in");
+const footerSignInButton = document.getElementById("footer-sign-in");
 const viewDemoButton = document.getElementById("view-demo");
 const authForm = document.getElementById("auth-form");
 const authToggle = document.getElementById("auth-toggle");
@@ -17,10 +20,19 @@ const authSwitchLabel = document.getElementById("auth-switch-label");
 const authSubmit = document.getElementById("auth-submit");
 const authStatus = document.getElementById("auth-status");
 const backToLandingButton = document.getElementById("back-to-landing");
+const authTitle = document.getElementById("auth-title");
+const authCopy = document.getElementById("auth-copy");
+const authBenefits = document.getElementById("auth-benefits");
 const emailInput = document.getElementById("email");
 const passwordInput = document.getElementById("password");
 const dashboardSubtitle = document.getElementById("dashboard-subtitle");
 const totalReceived = document.getElementById("total-received");
+const pendingTotal = document.getElementById("pending-total");
+const pendingCaption = document.getElementById("pending-caption");
+const paidCount = document.getElementById("paid-count");
+const invoiceCount = document.getElementById("invoice-count");
+const sidebarEmail = document.getElementById("sidebar-email");
+const walletInfoEmail = document.getElementById("wallet-info-email");
 const invoiceList = document.getElementById("invoice-list");
 const invoiceStatus = document.getElementById("invoice-status");
 const refreshButton = document.getElementById("refresh-button");
@@ -28,6 +40,7 @@ const logoutButton = document.getElementById("logout-button");
 const invoiceModal = document.getElementById("invoice-modal");
 const openInvoiceModalButton = document.getElementById("open-invoice-modal");
 const closeInvoiceModalButton = document.getElementById("close-invoice-modal");
+const cancelInvoiceModalButton = document.getElementById("cancel-invoice-modal");
 const invoiceForm = document.getElementById("invoice-form");
 const invoiceAmountInput = document.getElementById("invoice-amount");
 const invoiceDescriptionInput = document.getElementById("invoice-description");
@@ -49,9 +62,27 @@ getStartedButton.addEventListener("click", () => {
   showAuth("sign-up");
 });
 
+if (heroGetStartedButton) {
+  heroGetStartedButton.addEventListener("click", () => {
+    showAuth("sign-up");
+  });
+}
+
 if (finalGetStartedButton) {
   finalGetStartedButton.addEventListener("click", () => {
     showAuth("sign-up");
+  });
+}
+
+if (landingSignInButton) {
+  landingSignInButton.addEventListener("click", () => {
+    showAuth("sign-in");
+  });
+}
+
+if (footerSignInButton) {
+  footerSignInButton.addEventListener("click", () => {
+    showAuth("sign-in");
   });
 }
 
@@ -146,6 +177,12 @@ closeInvoiceModalButton.addEventListener("click", () => {
   closeInvoiceModal();
 });
 
+if (cancelInvoiceModalButton) {
+  cancelInvoiceModalButton.addEventListener("click", () => {
+    closeInvoiceModal();
+  });
+}
+
 invoiceModal.addEventListener("click", (event) => {
   if (event.target === invoiceModal) {
     closeInvoiceModal(true);
@@ -216,9 +253,20 @@ invoiceForm.addEventListener("submit", async (event) => {
 
 function renderAuthMode() {
   const signingIn = authMode === "sign-in";
+  if (authTitle) {
+    authTitle.textContent = signingIn ? "Welcome back" : "Create your account";
+  }
+  if (authCopy) {
+    authCopy.textContent = signingIn
+      ? "Sign in to manage your invoices"
+      : "Start sending invoices for free. No credit card needed.";
+  }
+  if (authBenefits) {
+    authBenefits.classList.toggle("hidden", signingIn);
+  }
   authSubmit.textContent = signingIn ? "Sign in" : "Create account";
-  authSwitchLabel.textContent = signingIn ? "Need an account?" : "Already have one?";
-  authToggle.textContent = signingIn ? "Create account" : "Sign in";
+  authSwitchLabel.textContent = signingIn ? "No account?" : "Already have an account?";
+  authToggle.textContent = signingIn ? "Create one free" : "Sign in";
   passwordInput.autocomplete = signingIn ? "current-password" : "new-password";
   authStatus.textContent = "";
 }
@@ -240,7 +288,13 @@ async function showDashboard() {
     currentUser = await apiRequest("/auth/me", { token: getToken() });
   }
 
-  dashboardSubtitle.textContent = `${currentUser.email} · Mainnet USDC`;
+  dashboardSubtitle.textContent = `${currentUser.email} · Solana Mainnet`;
+  if (sidebarEmail) {
+    sidebarEmail.textContent = currentUser.email;
+  }
+  if (walletInfoEmail) {
+    walletInfoEmail.textContent = currentUser.email;
+  }
   showScreen("dashboard");
   await loadInvoices();
   startRefresh();
@@ -249,7 +303,28 @@ async function showDashboard() {
 async function loadInvoices() {
   const invoices = await apiRequest("/me/invoices", { token: getToken() });
   const total = invoices.reduce((sum, invoice) => sum + Number(invoice.paid_amount_usdc || 0), 0);
+  const pending = invoices.reduce((sum, invoice) => {
+    if (invoice.status === "paid") {
+      return sum;
+    }
+
+    return sum + Math.max(0, Number(invoice.amount_usdc || 0) - Number(invoice.paid_amount_usdc || 0));
+  }, 0);
+  const paidInvoices = invoices.filter((invoice) => invoice.status === "paid").length;
+
   totalReceived.textContent = formatMoney(total);
+  if (pendingTotal) {
+    pendingTotal.textContent = formatMoney(pending);
+  }
+  if (pendingCaption) {
+    pendingCaption.textContent = `${invoices.length - paidInvoices} open invoices`;
+  }
+  if (paidCount) {
+    paidCount.textContent = `${paidInvoices} invoices`;
+  }
+  if (invoiceCount) {
+    invoiceCount.textContent = `${invoices.length} total`;
+  }
 
   if (!invoices.length) {
     invoiceList.innerHTML = `
@@ -261,12 +336,13 @@ async function loadInvoices() {
     return;
   }
 
-  invoiceList.innerHTML = invoices
+  const rows = invoices
     .map((invoice) => {
       const paidAmount = Number(invoice.paid_amount_usdc || 0);
       const statusClass = invoice.status === "paid" ? "paid" : "pending";
       const statusLabel = invoice.status === "paid" ? "Paid" : "Pending";
       const description = invoice.description ? escapeHtml(invoice.description) : "";
+      const clientLabel = invoice.client_email ? escapeHtml(invoice.client_email) : "Direct invoice";
       const netAmount = Number(invoice.net_amount_usdc || 0);
       const feeAmount = Number(invoice.platform_fee_usdc || 0);
       const paymentLabel =
@@ -277,28 +353,35 @@ async function loadInvoices() {
           : "No payment yet";
 
       return `
-        <article class="invoice-row">
+        <div class="invoice-table-row">
+          <span class="invoice-row-id">${escapeHtml(invoice.id.slice(0, 8).toUpperCase())}</span>
           <div class="invoice-row-main">
-            <strong class="money invoice-row-amount">${formatMoney(invoice.amount_usdc)}</strong>
-            ${
-              description
-                ? `<span class="invoice-row-description">${description}</span>`
-                : ""
-            }
+            <span class="invoice-row-client">${clientLabel}</span>
+            ${description ? `<span class="invoice-row-description">${description}</span>` : ""}
             <span class="invoice-row-subtext">${paymentLabel}</span>
-            <span class="invoice-row-subtext invoice-row-routing">Wallet ${escapeHtml(shortAddress(invoice.wallet_pubkey))} · USDC ${escapeHtml(shortAddress(invoice.usdc_ata))}</span>
           </div>
-          <div class="invoice-row-status">
-            <span class="status-badge ${statusClass}">${statusLabel}</span>
-          </div>
-          <div class="invoice-row-side">
-            <span class="invoice-row-date">${formatShortDate(invoice.created_at)}</span>
+          <span class="money invoice-row-amount">${formatMoney(invoice.amount_usdc)} <small>USDC</small></span>
+          <span class="status-badge ${statusClass}">${statusLabel}</span>
+          <span class="invoice-row-date">${formatShortDate(invoice.created_at)}</span>
+          <div class="invoice-row-actions">
             <a class="row-link" href="/pay/${invoice.id}" target="_blank" rel="noreferrer">View</a>
           </div>
-        </article>
+        </div>
       `;
     })
     .join("");
+
+  invoiceList.innerHTML = `
+    <div class="invoice-table-header">
+      <span>Invoice</span>
+      <span>Client</span>
+      <span>Amount</span>
+      <span>Status</span>
+      <span>Date</span>
+      <span></span>
+    </div>
+    ${rows}
+  `;
 }
 
 function startRefresh() {
@@ -415,6 +498,9 @@ function resetInvoiceRequestId() {
 function setInvoiceSubmitting(submitting) {
   invoiceSubmitButton.disabled = submitting;
   closeInvoiceModalButton.disabled = submitting;
+  if (cancelInvoiceModalButton) {
+    cancelInvoiceModalButton.disabled = submitting;
+  }
   invoiceSubmitButton.textContent = submitting ? "Creating..." : "Create Invoice";
 }
 

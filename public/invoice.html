@@ -14,52 +14,67 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body class="app-body">
-    <main class="invoice-page">
-      <section class="card invoice-card" id="invoice-card">
-        <div class="brand-lockup brand-lockup-center">
-          <span class="brand-mark" aria-hidden="true"></span>
+    <main class="invoice-root">
+      <header class="invoice-topbar">
+        <a class="invoice-topbar-brand" href="/">
+          <span class="landing-nav-logo"></span>
           <span>Aurefly</span>
+        </a>
+        <div class="invoice-topbar-meta">
+          <span class="invoice-security-dot"></span>
+          <span>Secured by Solana</span>
+        </div>
+      </header>
+
+      <section class="invoice-card" id="invoice-card">
+        <div class="invoice-topline"></div>
+
+        <div class="invoice-card-header">
+          <div>
+            <p class="mono-label">AUREFLY INVOICE</p>
+            <strong class="invoice-card-title">Ready to pay</strong>
+          </div>
+          <span class="invoice-live-badge">Live</span>
         </div>
 
         <div class="invoice-hero">
+          <span class="invoice-hero-label">Amount due</span>
           <strong class="money invoice-total" id="invoice-total">$0.00</strong>
-          <span class="invoice-currency">USDC</span>
+          <span class="invoice-currency">USDC on Solana</span>
           <p class="invoice-description hidden" id="invoice-description"></p>
         </div>
 
         <div class="invoice-breakdown">
           <div class="summary-row">
-            <span>Amount due</span>
+            <span>Subtotal</span>
             <strong id="invoice-subtotal">$0.00</strong>
           </div>
           <div class="summary-row" id="invoice-fee-row">
-            <span>Aurefly fee</span>
+            <span>Fee</span>
             <strong id="invoice-fee">Paid by merchant</strong>
           </div>
         </div>
 
-        <p class="invoice-lead">Pay with USDC (Solana)</p>
+        <p class="invoice-lead">Scan to pay or use the Aurefly payment link.</p>
 
         <div class="invoice-actions-panel" id="invoice-actions-panel">
-          <a class="button button-primary button-block button-large" id="pay-button" href="#" rel="noreferrer">Pay USDC</a>
+          <a class="button button-primary button-block button-large" id="pay-button" href="#" rel="noreferrer">Pay with Wallet</a>
 
-          <div class="invoice-divider"><span>OR</span></div>
-
-          <div class="qr-shell">
-            <img id="invoice-qr" alt="Invoice QR code" />
+          <div class="invoice-qr-panel">
+            <div class="qr-shell">
+              <img id="invoice-qr" alt="Invoice QR code" />
+            </div>
+            <div class="address-panel">
+              <span class="mono-label">Wallet destination</span>
+              <code class="address-code" id="invoice-address">-</code>
+            </div>
+            <button class="button button-secondary button-block" id="copy-address" type="button">Copy Address</button>
           </div>
 
-          <div class="address-panel">
-            <span class="section-label">USDC Pay Address</span>
-            <code class="address-code" id="invoice-address">-</code>
-          </div>
-
-          <button class="button button-secondary button-block" id="copy-address" type="button">Copy Address</button>
-
-          <p class="invoice-wallet-hint">Pay using Phantom or any Solana wallet.</p>
+          <p class="invoice-wallet-hint">Use the Aurefly payment link or QR so your payment is credited automatically.</p>
         </div>
 
-        <p class="status-text status-text-center">Payments usually confirm in ~10-15 seconds.</p>
+        <p class="status-text status-text-center invoice-confirm-copy">Payments usually confirm in ~10-15 seconds.</p>
 
         <section class="status-panel status-panel-waiting" id="invoice-state">
           <div class="status-panel-top">
@@ -71,11 +86,9 @@
         </section>
 
         <a class="explorer-link hidden" id="invoice-tx-link" target="_blank" rel="noreferrer">View on Explorer</a>
-
-        <div class="guardrail-inline guardrail-inline-pay">
-          This invoice must be paid using the Aurefly payment link or QR. Manual transfers may not be credited automatically.
-        </div>
       </section>
+
+      <p class="invoice-footer-note">Powered by Aurefly · Non-custodial · Built on Solana</p>
     </main>
 
     <script src="/static/invoice.js" defer></script>

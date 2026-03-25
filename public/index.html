@@ -15,191 +15,366 @@
   </head>
   <body class="app-body">
     <main class="app-root">
-      <section class="landing-page" id="landing-screen">
-        <div class="landing-frame">
-          <section class="landing-hero">
-            <div class="landing-hero-glow landing-hero-glow-left" aria-hidden="true"></div>
-            <div class="landing-hero-glow landing-hero-glow-right" aria-hidden="true"></div>
-            <div class="landing-hero-grid">
-              <div class="landing-brand">
-                <span class="brand-mark" aria-hidden="true"></span>
-                <span>Aurefly</span>
-              </div>
-              <h1 class="landing-title">Get paid in USDC. Instantly.</h1>
-              <p class="landing-copy">Create an invoice. Send a link. Funds settle directly to your wallet.</p>
-              <div class="landing-actions">
-                <button class="button button-primary" id="get-started" type="button">Get Started</button>
-                <button class="button button-secondary" id="view-demo" type="button">Try Demo</button>
-              </div>
-              <p class="status-text status-text-center" id="landing-status"></p>
+      <section class="landing-screen" id="landing-screen">
+        <div class="landing-bg-orb landing-bg-orb-green" aria-hidden="true"></div>
+        <div class="landing-bg-orb landing-bg-orb-blue" aria-hidden="true"></div>
+        <div class="landing-grid-overlay" aria-hidden="true"></div>
 
-              <div class="landing-scene" aria-hidden="true">
-                <div class="scene-panel">
-                  <div class="scene-panel-header">
-                    <span class="scene-kicker">Invoice</span>
-                    <span class="scene-status">Pending -> Paid</span>
-                  </div>
-                  <strong class="scene-amount">$240.00</strong>
-                  <p class="scene-copy">Website redesign retainer</p>
-                  <div class="scene-body">
-                    <div class="scene-qr-grid">
-                      <span class="fill"></span><span></span><span class="fill"></span><span></span><span class="fill"></span><span></span>
-                      <span></span><span class="fill"></span><span></span><span class="fill"></span><span></span><span class="fill"></span>
-                      <span class="fill"></span><span></span><span class="fill"></span><span class="fill"></span><span></span><span></span>
-                      <span></span><span class="fill"></span><span></span><span></span><span class="fill"></span><span class="fill"></span>
-                      <span class="fill"></span><span></span><span class="fill"></span><span></span><span class="fill"></span><span></span>
-                      <span></span><span class="fill"></span><span></span><span class="fill"></span><span></span><span class="fill"></span>
-                    </div>
-                    <div class="scene-status-block">
-                      <span class="scene-metric-label">Settlement</span>
-                      <strong>Confirmed</strong>
-                      <span class="scene-metric">$240.00</span>
-                      <span class="scene-caption">USDC on Solana</span>
-                    </div>
-                  </div>
-                  <div class="scene-footer">
-                    <span>Direct to wallet</span>
-                    <span>Reference attached</span>
-                    <span>No custody</span>
-                  </div>
+        <header class="landing-nav">
+          <a class="landing-nav-brand" href="#landing-screen">
+            <span class="landing-nav-logo"></span>
+            <span>Aurefly</span>
+          </a>
+
+          <nav class="landing-nav-links">
+            <a href="#features">Features</a>
+            <a href="#how-it-works">How It Works</a>
+            <a href="#final-cta">Pricing</a>
+          </nav>
+
+          <div class="landing-nav-actions">
+            <button class="nav-link-button" id="landing-sign-in" type="button">Sign in</button>
+            <button class="button button-primary" id="get-started" type="button">Get Started</button>
+          </div>
+        </header>
+
+        <section class="landing-hero">
+          <div class="landing-hero-copy">
+            <span class="landing-badge">
+              <span class="landing-badge-dot"></span>
+              BUILT ON SOLANA · POWERED BY USDC
+            </span>
+            <h1 class="landing-title">Create invoices. Get paid in USDC.</h1>
+            <p class="landing-copy">
+              Aurefly lets freelancers and internet-native businesses send payment requests and receive instant USDC settlements on Solana.
+            </p>
+            <div class="landing-actions">
+              <button class="button button-primary" id="hero-get-started" type="button">Create Invoice</button>
+              <button class="button button-secondary" id="view-demo" type="button">Try Demo</button>
+            </div>
+            <p class="status-text" id="landing-status"></p>
+
+            <div class="landing-trust-row">
+              <span><strong>&lt; 1s</strong> settlement</span>
+              <span><strong>Non-custodial</strong></span>
+              <span><strong>USDC only</strong></span>
+              <span><strong>Solana mainnet</strong></span>
+            </div>
+          </div>
+
+          <div class="landing-preview">
+            <div class="landing-preview-card">
+              <div class="landing-preview-topline"></div>
+              <div class="landing-preview-header">
+                <span class="mono-label">INVOICE #2847</span>
+                <span class="preview-status-badge">Paid</span>
+              </div>
+
+              <div class="landing-preview-amount">
+                <span class="preview-amount-label">Amount</span>
+                <strong>$2,400</strong>
+                <span class="preview-amount-currency">USDC</span>
+              </div>
+
+              <div class="landing-preview-meta">
+                <div>
+                  <span>Client</span>
+                  <strong>Acme Corp</strong>
+                </div>
+                <div>
+                  <span>Description</span>
+                  <strong>Brand Design</strong>
+                </div>
+                <div>
+                  <span>Date</span>
+                  <strong>Jan 14, 2026</strong>
+                </div>
+              </div>
+
+              <div class="landing-preview-success">
+                <div class="preview-success-icon">$</div>
+                <div>
+                  <strong>Payment confirmed</strong>
+                  <span>0.2s ago · Solana</span>
                 </div>
               </div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          <section class="landing-steps" aria-label="How Aurefly works">
-            <div class="landing-step-item"><span>Create invoice</span></div>
-            <div class="landing-step-separator" aria-hidden="true"></div>
-            <div class="landing-step-item"><span>Share link</span></div>
-            <div class="landing-step-separator" aria-hidden="true"></div>
-            <div class="landing-step-item"><span>Get paid</span></div>
-          </section>
+        <section class="how-strip" id="how-it-works">
+          <div class="section-heading">
+            <span class="section-kicker">HOW IT WORKS</span>
+            <h2>Three steps. That’s all it takes.</h2>
+            <p>No bank accounts, no KYC, no waiting periods. Just a wallet and a link.</p>
+          </div>
 
-          <section class="landing-value">
-            <div class="landing-value-copy">
-              <h2 class="landing-section-title">One link. One scan. Paid.</h2>
-              <p class="landing-section-text">Customers open the invoice, scan or tap pay, and send USDC. Aurefly confirms automatically.</p>
+          <div class="how-grid">
+            <article class="how-card">
+              <div class="how-card-top">
+                <span class="how-icon">+</span>
+                <span class="how-number">01</span>
+              </div>
+              <h3>Create Invoice</h3>
+              <p>Enter the amount in USDC, add a description, and generate a payment request in seconds.</p>
+            </article>
+            <article class="how-card">
+              <div class="how-card-top">
+                <span class="how-icon">→</span>
+                <span class="how-number">02</span>
+              </div>
+              <h3>Send a Link</h3>
+              <p>Share a clean payment page with your client. No account needed on their end.</p>
+            </article>
+            <article class="how-card">
+              <div class="how-card-top">
+                <span class="how-icon">✓</span>
+                <span class="how-number">03</span>
+              </div>
+              <h3>Get Paid Instantly</h3>
+              <p>Funds settle in USDC on Solana and land directly in your wallet.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="feature-section" id="features">
+          <div class="feature-heading">
+            <div>
+              <span class="section-kicker section-kicker-blue">WHY AUREFLY</span>
+              <h2>Built for the new internet economy.</h2>
             </div>
-          </section>
+            <p>Designed for freelancers and remote-first teams who work globally and need payments that keep up.</p>
+          </div>
 
-          <section class="landing-demo">
-            <div class="demo-proof-card">
-              <div class="demo-proof-glow" aria-hidden="true"></div>
-              <span class="scene-kicker">Payment success</span>
-              <strong class="money demo-proof-amount">$1,250.00</strong>
-              <strong class="demo-proof-title">Confirmed on Solana</strong>
-              <p class="demo-proof-copy">USDC received directly to the merchant wallet.</p>
+          <div class="feature-grid">
+            <article class="feature-card feature-card-wide feature-card-green">
+              <h3>Instant Settlement</h3>
+              <p>Solana confirms transactions fast. Your USDC arrives before your client even closes the tab.</p>
+            </article>
+            <article class="feature-card feature-card-blue">
+              <h3>Borderless by Default</h3>
+              <p>Send invoices to clients anywhere. USDC doesn’t care about borders.</p>
+            </article>
+            <article class="feature-card feature-card-green">
+              <h3>Non-Custodial</h3>
+              <p>We never hold your funds. Payments go directly to your Solana wallet.</p>
+            </article>
+            <article class="feature-card feature-card-wide feature-card-blue">
+              <h3>Micro Fees</h3>
+              <p>Solana transactions cost a fraction of a cent. Keep what you earn.</p>
+            </article>
+          </div>
+
+          <div class="feature-stats">
+            <div>
+              <strong>400ms</strong>
+              <span>Avg confirmation</span>
             </div>
-          </section>
+            <div>
+              <strong>$0.0009</strong>
+              <span>Avg tx fee</span>
+            </div>
+            <div>
+              <strong>100%</strong>
+              <span>Non-custodial</span>
+            </div>
+            <div>
+              <strong>24 / 7</strong>
+              <span>Always on</span>
+            </div>
+          </div>
+        </section>
 
-          <section class="landing-final-cta">
-            <div class="card final-cta-card">
-              <h2 class="landing-section-title">Start accepting USDC in minutes.</h2>
+        <section class="landing-cta-band" id="final-cta">
+          <div class="landing-cta-inner">
+            <span class="section-kicker">START TODAY · FREE</span>
+            <h2>Ready to get paid without the friction?</h2>
+            <p>Connect your wallet, send your first invoice, and settle directly in USDC.</p>
+            <div class="landing-actions landing-actions-center">
               <button class="button button-primary" id="final-get-started" type="button">Create your first invoice</button>
+              <button class="button button-secondary" id="footer-sign-in" type="button">Sign in</button>
             </div>
-          </section>
-        </div>
-      </section>
+          </div>
+        </section>
 
-      <section class="screen-center hidden" id="auth-screen">
-        <div class="card auth-card">
-          <div class="brand-lockup">
-            <span class="brand-mark" aria-hidden="true"></span>
+        <footer class="landing-footer">
+          <div class="landing-footer-brand">
+            <span class="landing-nav-logo"></span>
             <span>Aurefly</span>
           </div>
-          <form class="form-stack" id="auth-form">
-            <label class="field">
-              <span>Email</span>
-              <input id="email" name="email" type="email" autocomplete="email" required />
-            </label>
-            <label class="field">
-              <span>Password</span>
-              <input id="password" name="password" type="password" autocomplete="current-password" required />
-            </label>
-            <button class="button button-primary button-block" id="auth-submit" type="submit">Create account</button>
-          </form>
-          <p class="auth-switch">
-            <span id="auth-switch-label">Already have one?</span>
-            <button class="text-button" id="auth-toggle" type="button">Sign in</button>
-          </p>
-          <button class="text-button auth-back" id="back-to-landing" type="button">Back</button>
-          <p class="status-text" id="auth-status"></p>
+          <div class="landing-footer-links">
+            <a href="#features">Features</a>
+            <a href="#how-it-works">How It Works</a>
+            <a href="#final-cta">Get Started</a>
+          </div>
+          <p>© 2026 Aurefly. Built on Solana.</p>
+        </footer>
+      </section>
+
+      <section class="auth-screen hidden" id="auth-screen">
+        <div class="auth-shell">
+          <a class="auth-brand" href="/">
+            <span class="landing-nav-logo"></span>
+            <span>Aurefly</span>
+          </a>
+
+          <div class="auth-card">
+            <div class="auth-topline"></div>
+            <div class="auth-copy-block">
+              <h1 id="auth-title">Create your account</h1>
+              <p id="auth-copy">Start sending invoices for free. No credit card needed.</p>
+            </div>
+
+            <div class="auth-benefits" id="auth-benefits">
+              <div><span>●</span><span>Non-custodial — own your funds</span></div>
+              <div><span>●</span><span>Instant USDC settlement</span></div>
+              <div><span>●</span><span>Unlimited invoices</span></div>
+            </div>
+
+            <form class="form-stack auth-form" id="auth-form">
+              <label class="field">
+                <span>Email</span>
+                <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+              </label>
+              <label class="field">
+                <span>Password</span>
+                <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Min 8 characters" required />
+              </label>
+              <button class="button button-primary button-block auth-submit" id="auth-submit" type="submit">Create account</button>
+            </form>
+
+            <p class="status-text" id="auth-status"></p>
+
+            <div class="auth-footer-row">
+              <p class="auth-switch">
+                <span id="auth-switch-label">Already have an account?</span>
+                <button class="text-button" id="auth-toggle" type="button">Sign in</button>
+              </p>
+              <button class="nav-link-button auth-back" id="back-to-landing" type="button">Back</button>
+            </div>
+          </div>
         </div>
       </section>
 
       <section class="dashboard-shell hidden" id="dashboard-screen">
-        <header class="card dashboard-header">
-          <div>
-            <div class="brand-lockup">
-              <span class="brand-mark" aria-hidden="true"></span>
-              <span>Aurefly</span>
+        <aside class="dashboard-sidebar">
+          <div class="dashboard-sidebar-brand">
+            <span class="landing-nav-logo"></span>
+            <span>Aurefly</span>
+          </div>
+
+          <nav class="dashboard-sidebar-nav">
+            <a class="dashboard-nav-item dashboard-nav-item-active" href="#dashboard-screen">Overview</a>
+            <a class="dashboard-nav-item" href="#invoice-list">Invoices</a>
+            <a class="dashboard-nav-item" href="#wallet-info">Wallet</a>
+            <a class="dashboard-nav-item" href="#invoice-modal">Create</a>
+          </nav>
+
+          <div class="dashboard-sidebar-account">
+            <div class="dashboard-sidebar-avatar"></div>
+            <div class="dashboard-sidebar-meta">
+              <strong id="sidebar-email">merchant@example.com</strong>
+              <span>Solana mainnet</span>
             </div>
-            <p class="dashboard-subtitle" id="dashboard-subtitle"></p>
           </div>
-          <div class="dashboard-header-actions">
-            <button class="button button-secondary" id="logout-button" type="button">Sign out</button>
-            <button class="button button-primary" id="open-invoice-modal" type="button">New Invoice</button>
-          </div>
-        </header>
 
-        <section class="card summary-card">
-          <span class="section-label">Total Received</span>
-          <strong class="money summary-value" id="total-received">$0.00</strong>
-        </section>
+          <button class="nav-link-button dashboard-signout" id="logout-button" type="button">Sign out</button>
+        </aside>
 
-        <section class="card list-card">
-          <div class="section-row">
+        <div class="dashboard-main">
+          <header class="dashboard-header">
             <div>
-              <h2>Invoices</h2>
-              <p class="section-caption">Track what has settled and what is still waiting on-chain.</p>
+              <h1>Overview</h1>
+              <p class="dashboard-subtitle" id="dashboard-subtitle"></p>
             </div>
-            <button class="button button-secondary button-small" id="refresh-button" type="button">Refresh</button>
-          </div>
-          <div class="guardrail-inline">
-            Invoices are credited by Solana Pay reference. Share the Aurefly payment link or QR instead of asking clients to send funds manually.
-          </div>
-          <div class="invoice-list" id="invoice-list"></div>
-        </section>
+            <div class="dashboard-header-actions">
+              <button class="button button-secondary button-small" id="refresh-button" type="button">Refresh</button>
+              <button class="button button-primary" id="open-invoice-modal" type="button">Create Invoice</button>
+            </div>
+          </header>
 
-        <p class="status-text" id="invoice-status"></p>
+          <section class="dashboard-stats">
+            <article class="stat-card stat-card-green">
+              <span>Total Earned</span>
+              <strong class="money" id="total-received">$0.00</strong>
+              <p>USDC settled</p>
+            </article>
+            <article class="stat-card stat-card-blue">
+              <span>Pending</span>
+              <strong class="money" id="pending-total">$0.00</strong>
+              <p id="pending-caption">0 open invoices</p>
+            </article>
+            <article class="stat-card stat-card-green">
+              <span>Paid</span>
+              <strong id="paid-count">0 invoices</strong>
+              <p>This month</p>
+            </article>
+          </section>
+
+          <section class="invoice-panel">
+            <div class="invoice-panel-header">
+              <div>
+                <h2>Invoices</h2>
+                <p class="section-caption">Track what has settled and what is still waiting on-chain.</p>
+              </div>
+              <span class="mono-label" id="invoice-count">0 total</span>
+            </div>
+            <div class="guardrail-inline">
+              Invoices are credited by Solana Pay reference. Share the Aurefly payment link or QR instead of asking clients to send funds manually.
+            </div>
+            <div class="invoice-list" id="invoice-list"></div>
+          </section>
+
+          <section class="wallet-info-card" id="wallet-info">
+            <div>
+              <span>Connected Account</span>
+              <strong id="wallet-info-email">merchant@example.com</strong>
+            </div>
+            <div class="wallet-info-chip">Solana Mainnet</div>
+          </section>
+
+          <p class="status-text" id="invoice-status"></p>
+        </div>
       </section>
     </main>
 
     <div class="modal-backdrop hidden" id="invoice-modal">
-      <section class="card modal-card" role="dialog" aria-modal="true" aria-labelledby="invoice-modal-title">
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="invoice-modal-title">
+        <div class="modal-topline"></div>
         <div class="modal-header">
           <div>
-            <p class="section-label">Create Invoice</p>
-            <h2 id="invoice-modal-title">Create Invoice</h2>
+            <h2 id="invoice-modal-title">New Invoice</h2>
+            <p>Fill in the details below</p>
           </div>
           <button class="icon-button" id="close-invoice-modal" type="button" aria-label="Close create invoice dialog">
             ×
           </button>
         </div>
 
-        <form class="form-stack" id="invoice-form">
+        <form class="form-stack modal-form" id="invoice-form">
           <label class="field field-large">
             <span>Amount (USDC)</span>
-            <input id="invoice-amount" name="amount_usdc" type="number" min="0.01" step="0.000001" placeholder="1.24" required />
+            <div class="amount-field-wrap">
+              <span class="amount-prefix">$</span>
+              <input id="invoice-amount" name="amount_usdc" type="number" min="0.01" step="0.000001" placeholder="0.00" required />
+              <span class="amount-suffix">USDC</span>
+            </div>
           </label>
+
           <label class="field">
             <span>Description</span>
-            <input id="invoice-description" name="description" type="text" placeholder="Design work" />
+            <input id="invoice-description" name="description" type="text" placeholder="e.g. Brand design project — Phase 1" />
           </label>
+
           <label class="field">
             <span>Client email (optional)</span>
             <input id="invoice-client-email" name="client_email" type="email" placeholder="client@example.com" />
           </label>
+
           <label class="field">
-            <span>Payout address</span>
-            <input
-              id="invoice-payout-address"
-              name="payout_address"
-              type="text"
-              placeholder="Wallet or USDC account"
-              required
-            />
-            <span>Paste your wallet address or your USDC account. Aurefly will derive and use your mainnet USDC account automatically.</span>
+            <span>Recipient wallet</span>
+            <input id="invoice-payout-address" name="payout_address" type="text" placeholder="Solana wallet address" required />
+            <small>Paste your wallet address or your USDC account. Aurefly will derive and use your mainnet USDC account automatically.</small>
           </label>
 
           <div class="invoice-summary">
@@ -217,7 +392,10 @@
             </div>
           </div>
 
-          <button class="button button-primary button-block" type="submit">Create Invoice</button>
+          <div class="modal-actions">
+            <button class="button button-secondary button-block" id="cancel-invoice-modal" type="button">Cancel</button>
+            <button class="button button-primary button-block" type="submit">Create Invoice</button>
+          </div>
         </form>
       </section>
     </div>

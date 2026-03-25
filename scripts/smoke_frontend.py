@@ -88,11 +88,11 @@ def main():
 
     summary = {
         "email": email,
-        "root_page_has_copy": "Get paid in USDC. Instantly." in app_shell
-        and "Create an invoice. Send a link. Funds settle directly to your wallet." in app_shell,
-        "root_page_has_steps": "Create invoice" in app_shell and "Share link" in app_shell and "Get paid" in app_shell,
+        "root_page_has_copy": "Create invoices. Get paid in USDC." in app_shell
+        and "Aurefly lets freelancers and internet-native businesses send payment requests" in app_shell,
+        "root_page_has_steps": "Create Invoice" in app_shell and "Send a Link" in app_shell and "Get Paid Instantly" in app_shell,
         "root_page_has_demo_cta": "Try Demo" in app_shell,
-        "root_page_has_final_cta": "Start accepting USDC in minutes." in app_shell and "Create your first invoice" in app_shell,
+        "root_page_has_final_cta": "Ready to get paid without the friction?" in app_shell and "Create your first invoice" in app_shell,
         "sign_in_email": sign_in["user"]["email"],
         "me_email": me["email"],
         "invoice_id": invoice["id"],
@@ -120,8 +120,8 @@ def main():
         "public_invoice_payment_uri": public_invoice.get("payment_uri"),
         "public_payment_uri_has_exact_reference": f"&reference={invoice['reference_pubkey']}" in public_invoice.get("payment_uri", ""),
         "public_payment_uri_matches_private": public_invoice.get("payment_uri") == invoice["payment_uri"],
-        "public_page_has_heading": "Pay with USDC (Solana)" in public_page and "Payments usually confirm in ~10-15 seconds." in public_page,
-        "public_page_has_wallet_hint": "Pay using Phantom or any Solana wallet." in public_page,
+        "public_page_has_heading": "Scan to pay or use the Aurefly payment link." in public_page and "Payments usually confirm in ~10-15 seconds." in public_page,
+        "public_page_has_wallet_hint": "Use the Aurefly payment link or QR so your payment is credited automatically." in public_page,
         "qr_status": qr_status,
         "qr_content_type": qr_headers.get("Content-Type"),
         "qr_has_svg": "<svg" in qr_svg[:200],
