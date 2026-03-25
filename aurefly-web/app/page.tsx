@@ -62,17 +62,23 @@ export default function HomePage() {
 
             <div className="hidden items-center gap-3 lg:flex">
               <Link
+                href="/auth?mode=sign-in"
+                className="inline-flex h-11 items-center justify-center rounded-full px-4 text-sm font-medium text-slate-300 transition hover:text-white"
+              >
+                Sign in
+              </Link>
+              <Link
                 href={`/pay/${DEMO_INVOICE_ID}`}
                 className="inline-flex h-11 items-center justify-center rounded-full border border-white/10 px-5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.04]"
               >
                 Try Demo Invoice
               </Link>
-              <a
-                href="#final-cta"
+              <Link
+                href="/auth?mode=sign-up"
                 className="inline-flex h-11 items-center justify-center rounded-full bg-[#4f86ff] px-5 text-sm font-semibold text-white shadow-[0_10px_28px_rgba(79,134,255,0.24)] transition hover:-translate-y-px hover:bg-[#6595ff]"
               >
                 Get Started
-              </a>
+              </Link>
             </div>
 
             <details className="group lg:hidden">
@@ -99,17 +105,23 @@ export default function HomePage() {
                 </div>
                 <div className="mt-4 grid gap-3">
                   <Link
+                    href="/auth?mode=sign-in"
+                    className="inline-flex h-11 items-center justify-center rounded-full border border-white/10 text-sm font-medium text-white transition hover:bg-white/[0.04]"
+                  >
+                    Sign in
+                  </Link>
+                  <Link
                     href={`/pay/${DEMO_INVOICE_ID}`}
                     className="inline-flex h-11 items-center justify-center rounded-full border border-white/10 text-sm font-medium text-white transition hover:bg-white/[0.04]"
                   >
                     Try Demo Invoice
                   </Link>
-                  <a
-                    href="#final-cta"
+                  <Link
+                    href="/auth?mode=sign-up"
                     className="inline-flex h-11 items-center justify-center rounded-full bg-[#4f86ff] text-sm font-semibold text-white"
                   >
                     Get Started
-                  </a>
+                  </Link>
                 </div>
               </div>
             </details>
@@ -132,12 +144,12 @@ export default function HomePage() {
             </p>
 
             <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <a
-                href="#final-cta"
+              <Link
+                href="/auth?mode=sign-up"
                 className="inline-flex h-12 min-w-[168px] items-center justify-center rounded-full bg-[#4f86ff] px-6 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(79,134,255,0.24)] transition hover:-translate-y-px hover:bg-[#6595ff]"
               >
                 Get Started
-              </a>
+              </Link>
               <Link
                 href={`/pay/${DEMO_INVOICE_ID}`}
                 className="inline-flex h-12 min-w-[168px] items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.05]"
@@ -331,7 +343,7 @@ export default function HomePage() {
             </p>
             <div className="mt-10 flex justify-center">
               <Link
-                href={`/pay/${DEMO_INVOICE_ID}`}
+                href="/auth?mode=sign-up"
                 className="inline-flex h-12 items-center justify-center rounded-full bg-[#4f86ff] px-6 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(79,134,255,0.24)] transition hover:-translate-y-px hover:bg-[#6595ff]"
               >
                 Create your first invoice
