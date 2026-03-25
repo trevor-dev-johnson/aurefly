@@ -25,6 +25,7 @@
   --space-5: 32px;
   --space-6: 40px;
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Satoshi", "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -43,9 +44,10 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(ellipse 78% 44% at 50% -8%, rgba(57, 255, 122, 0.08) 0%, transparent 62%),
-    radial-gradient(circle at 82% 18%, rgba(79, 143, 255, 0.12), transparent 24%),
-    radial-gradient(circle at 18% 72%, rgba(57, 255, 122, 0.06), transparent 24%),
+    radial-gradient(ellipse 78% 46% at 50% -10%, rgba(57, 255, 122, 0.075) 0%, transparent 63%),
+    radial-gradient(circle at 50% 22%, rgba(79, 143, 255, 0.08), transparent 26%),
+    radial-gradient(circle at 24% 28%, rgba(79, 143, 255, 0.035), transparent 18%),
+    radial-gradient(circle at 76% 34%, rgba(57, 255, 122, 0.035), transparent 18%),
     linear-gradient(180deg, #040608 0%, #070a10 48%, #050506 100%),
     var(--bg);
   color: var(--text-primary);
@@ -257,19 +259,19 @@ textarea:focus {
 }
 
 .landing-bg-orb-green {
-  top: -80px;
-  left: calc(50% - 260px);
-  width: 520px;
-  height: 280px;
-  background: rgba(57, 255, 122, 0.12);
+  top: -54px;
+  left: calc(50% - 320px);
+  width: 500px;
+  height: 250px;
+  background: rgba(57, 255, 122, 0.085);
 }
 
 .landing-bg-orb-blue {
-  top: 160px;
-  right: -80px;
-  width: 380px;
-  height: 380px;
-  background: rgba(79, 143, 255, 0.1);
+  top: 120px;
+  right: 4%;
+  width: 300px;
+  height: 300px;
+  background: rgba(79, 143, 255, 0.07);
   animation-duration: 14s;
 }
 
@@ -295,10 +297,10 @@ textarea:focus {
   margin-top: 20px;
   padding: 14px 20px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(7, 10, 14, 0.72);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  background: rgba(7, 10, 14, 0.56);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
 }
 
 .landing-nav-brand,
@@ -405,10 +407,12 @@ textarea:focus {
 }
 
 .landing-title {
+  font-family: var(--font-display);
+  font-weight: 700;
   max-width: 10ch;
   font-size: clamp(3.7rem, 8vw, 6.2rem);
-  line-height: 0.96;
-  letter-spacing: -0.07em;
+  line-height: 0.91;
+  letter-spacing: -0.085em;
   text-wrap: balance;
 }
 
@@ -426,7 +430,7 @@ textarea:focus {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin-top: 28px;
+  margin-top: 34px;
 }
 
 .landing-actions-center {
@@ -461,14 +465,25 @@ textarea:focus {
 .landing-preview::before {
   content: "";
   position: absolute;
-  inset: auto 50% -36px;
-  width: min(84vw, 700px);
-  height: 220px;
+  inset: auto 50% -44px;
+  width: min(88vw, 760px);
+  height: 260px;
   transform: translateX(-50%);
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(79, 143, 255, 0.16) 0%, rgba(57, 255, 122, 0.12) 32%, transparent 72%);
-  filter: blur(40px);
-  opacity: 0.95;
+  background: radial-gradient(circle, rgba(79, 143, 255, 0.13) 0%, rgba(57, 255, 122, 0.09) 36%, transparent 72%);
+  filter: blur(52px);
+  opacity: 0.9;
+}
+
+.landing-preview::after {
+  content: "";
+  position: absolute;
+  inset: 12% 14% auto;
+  height: 72%;
+  border-radius: 32px;
+  background: rgba(255, 255, 255, 0.035);
+  filter: blur(36px);
+  opacity: 0.28;
 }
 
 .landing-preview-card {
@@ -478,15 +493,16 @@ textarea:focus {
   padding: 32px;
   border-radius: 30px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.035)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.028)),
     rgba(7, 10, 14, 0.84);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.03),
-    0 24px 80px rgba(0, 0, 0, 0.46),
-    0 20px 80px rgba(79, 143, 255, 0.08);
+    0 24px 72px rgba(0, 0, 0, 0.36),
+    0 18px 60px rgba(79, 143, 255, 0.055);
   transform: perspective(1800px) rotateX(9deg);
   transform-origin: center top;
+  backdrop-filter: blur(14px);
 }
 
 .landing-preview-card::before {
@@ -1788,7 +1804,7 @@ textarea:focus {
   .landing-title {
     max-width: 11ch;
     font-size: clamp(2.8rem, 16vw, 4.2rem);
-    line-height: 0.98;
+    line-height: 0.94;
   }
 
   .landing-copy {
