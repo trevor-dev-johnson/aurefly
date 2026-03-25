@@ -34,7 +34,10 @@ impl Config {
             .parse()
             .context("PORT must be a valid u16")?;
         let allowed_origins = optional_env("ALLOWED_ORIGINS")
-            .unwrap_or_else(|| "https://aurefly.com,https://www.aurefly.com".to_string())
+            .unwrap_or_else(|| {
+                "https://aurefly.com,https://www.aurefly.com,http://localhost:3000,http://127.0.0.1:3000"
+                    .to_string()
+            })
             .split(',')
             .map(str::trim)
             .filter(|value| !value.is_empty())
