@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 384" fill="none">
+  <defs>
+    <radialGradient id="aurefly-glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 198) rotate(90) scale(126 194)">
+      <stop offset="0" stop-color="#FFE680" stop-opacity="0.95"/>
+      <stop offset="0.42" stop-color="#FFD457" stop-opacity="0.56"/>
+      <stop offset="1" stop-color="#FFD457" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="aurefly-gold" x1="144" y1="98" x2="377" y2="286" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF0A7"/>
+      <stop offset="0.42" stop-color="#FFD86B"/>
+      <stop offset="1" stop-color="#F5B93E"/>
+    </linearGradient>
+    <filter id="soft-glow" x="12" y="36" width="488" height="312" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="30"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#soft-glow)" opacity="0.9">
+    <ellipse cx="256" cy="202" rx="166" ry="88" transform="rotate(-14 256 202)" fill="url(#aurefly-glow)"/>
+  </g>
+
+  <g opacity="0.95" stroke="url(#aurefly-gold)" stroke-linecap="round" stroke-width="6">
+    <path d="M106 262C86 224 111 176 169 147" />
+    <path d="M343 116C401 100 447 117 456 144C468 180 430 234 362 276C290 321 183 341 114 318C98 312 85 304 76 292" />
+  </g>
+
+  <g filter="url(#soft-glow)" opacity="0.55">
+    <path d="M254 176L216 132L168 112L188 182L225 197L254 176Z" fill="#FFD457"/>
+    <path d="M258 176L296 132L344 112L324 182L287 197L258 176Z" fill="#FFD457"/>
+    <path d="M236 204L206 214L192 262L231 242L250 210L236 204Z" fill="#FFD457"/>
+    <path d="M276 204L306 214L320 262L281 242L262 210L276 204Z" fill="#FFD457"/>
+  </g>
+
+  <g fill="url(#aurefly-gold)" stroke="#FBE28A" stroke-opacity="0.5">
+    <path d="M254 176L216 132L168 112L188 182L225 197L254 176Z"/>
+    <path d="M258 176L296 132L344 112L324 182L287 197L258 176Z"/>
+    <path d="M236 204L206 214L192 262L231 242L250 210L236 204Z"/>
+    <path d="M276 204L306 214L320 262L281 242L262 210L276 204Z"/>
+    <path d="M249 173L263 173L261 212L251 212Z"/>
+  </g>
+</svg>
