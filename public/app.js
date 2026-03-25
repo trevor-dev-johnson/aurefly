@@ -37,6 +37,7 @@ const invoiceList = document.getElementById("invoice-list");
 const invoiceStatus = document.getElementById("invoice-status");
 const refreshButton = document.getElementById("refresh-button");
 const logoutButton = document.getElementById("logout-button");
+const mobileLogoutButton = document.getElementById("mobile-logout-button");
 const invoiceModal = document.getElementById("invoice-modal");
 const openInvoiceModalButton = document.getElementById("open-invoice-modal");
 const closeInvoiceModalButton = document.getElementById("close-invoice-modal");
@@ -135,9 +136,14 @@ authForm.addEventListener("submit", async (event) => {
   }
 });
 
-logoutButton.addEventListener("click", async () => {
+async function handleLogout() {
   invoiceStatus.textContent = "Signing out...";
-  logoutButton.disabled = true;
+  if (logoutButton) {
+    logoutButton.disabled = true;
+  }
+  if (mobileLogoutButton) {
+    mobileLogoutButton.disabled = true;
+  }
 
   try {
     await apiRequest("/auth/logout", {
@@ -151,9 +157,20 @@ logoutButton.addEventListener("click", async () => {
     }
     invoiceStatus.textContent = error.message;
   } finally {
-    logoutButton.disabled = false;
+    if (logoutButton) {
+      logoutButton.disabled = false;
+    }
+    if (mobileLogoutButton) {
+      mobileLogoutButton.disabled = false;
+    }
   }
-});
+}
+
+logoutButton.addEventListener("click", handleLogout);
+
+if (mobileLogoutButton) {
+  mobileLogoutButton.addEventListener("click", handleLogout);
+}
 
 refreshButton.addEventListener("click", async () => {
   invoiceStatus.textContent = "";
