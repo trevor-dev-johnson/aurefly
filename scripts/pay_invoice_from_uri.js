@@ -26,6 +26,10 @@ async function main() {
     email,
     password: PASSWORD,
   });
+  const signIn = await requestJson("POST", `${API_BASE}/auth/sign-in`, {
+    email,
+    password: PASSWORD,
+  });
   const invoice = await requestJsonWithToken(
     "POST",
     `${API_BASE}/me/invoices`,
@@ -34,7 +38,7 @@ async function main() {
       payout_address: PAYOUT_ADDRESS,
       description: "URI payment smoke",
     },
-    auth.token
+    signIn.token
   );
   const payPageUrl = `${APP_BASE}/pay/${invoice.id}`;
   const payPageResponse = await fetch(payPageUrl);
@@ -51,6 +55,8 @@ async function main() {
   const payment = await payInvoiceFromUri(connection, payer, invoice.payment_uri);
   const observedInvoice = await requestJson("GET", `${API_BASE}/public/invoices/${invoice.id}?observe_payment=true`);
   const paidInvoice = await waitForInvoicePaid(invoice.id);
+  const dashboardInvoices = await requestJsonWithToken("GET", `${API_BASE}/me/invoices`, undefined, signIn.token);
+  const dashboardInvoice = dashboardInvoices.find((item) => item.id === invoice.id) || null;
 
   const summary = {
     rpc_provider: rpcProvider,
@@ -71,6 +77,9 @@ async function main() {
     invoice_paid_in_secs: paidInvoice.detectedInSecs,
     latest_payment_tx_signature: paidInvoice.invoice.latest_payment_tx_signature,
     invoice_status: paidInvoice.invoice.status,
+    invoice_present_in_dashboard: Boolean(dashboardInvoice),
+    dashboard_invoice_status: dashboardInvoice?.status ?? null,
+    dashboard_latest_payment_tx_signature: dashboardInvoice?.latest_payment_tx_signature ?? null,
   };
 
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);

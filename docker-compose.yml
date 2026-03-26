@@ -28,7 +28,7 @@ services:
       DATABASE_URL: postgres://solana_pay:solana_pay@db:5432/solana_pay
       HOST: 0.0.0.0
       PORT: 8080
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://aurefly.com,https://www.aurefly.com}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://aurefly.com,https://www.aurefly.com,http://localhost:3000,http://127.0.0.1:3000}
       SOLANA_RPC_URL: ${SOLANA_RPC_URL:-}
       HELIUS_API_KEY: ${HELIUS_API_KEY:-}
       TREASURY_WALLET_PATH: /data/treasury-wallet.json
