@@ -179,6 +179,29 @@ export function DashboardClient() {
     return () => window.clearInterval(interval);
   }, [router, token, user]);
 
+  useEffect(() => {
+    if (!modalOpen) {
+      return;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+    const previousHtmlOverscroll = document.documentElement.style.overscrollBehavior;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+    document.documentElement.style.overscrollBehavior = "none";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+      document.documentElement.style.overscrollBehavior = previousHtmlOverscroll;
+    };
+  }, [modalOpen]);
+
   const metrics = useMemo(() => {
     const totalReceived = invoices.reduce(
       (sum, invoice) => sum + Number(invoice.paid_amount_usdc || 0),
@@ -611,9 +634,10 @@ export function DashboardClient() {
       </div>
 
       {modalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#03070d]/80 px-4 py-6 backdrop-blur-md">
-          <section className="w-full max-w-xl rounded-[2rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.02))] p-6 shadow-[0_34px_100px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:p-7">
-            <div className="flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-[#03070d]/88 px-4 py-4 backdrop-blur-md sm:px-6 sm:py-6">
+          <div className="flex min-h-full items-start justify-center sm:items-center">
+            <section className="flex w-full max-w-xl flex-col overflow-hidden rounded-[2rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.02))] shadow-[0_34px_100px_rgba(0,0,0,0.38)] backdrop-blur-2xl max-h-[calc(100svh-2rem)] sm:max-h-[min(52rem,calc(100svh-3rem))]">
+            <div className="flex items-start justify-between gap-4 border-b border-white/6 px-5 pb-5 pt-5 sm:px-7 sm:pb-6 sm:pt-6">
               <div>
                 <div className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
                   Create invoice
@@ -634,7 +658,8 @@ export function DashboardClient() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateInvoice} className="mt-8 grid gap-5">
+            <form onSubmit={handleCreateInvoice} className="flex min-h-0 flex-1 flex-col">
+              <div className="grid min-h-0 flex-1 gap-5 overflow-y-auto px-5 py-5 sm:px-7 sm:py-6">
               <label className="grid gap-2 text-sm text-slate-300">
                 <span>Amount (USDC)</span>
                 <div className="flex h-14 items-center rounded-[1.35rem] border border-white/8 bg-[#0d1520]/92 px-4">
@@ -708,8 +733,9 @@ export function DashboardClient() {
                   </span>
                 </div>
               </div>
+              </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 border-t border-white/6 px-5 py-4 sm:grid-cols-2 sm:px-7 sm:py-5">
                 <button
                   type="button"
                   onClick={closeModal}
@@ -727,6 +753,7 @@ export function DashboardClient() {
               </div>
             </form>
           </section>
+          </div>
         </div>
       ) : null}
     </main>
