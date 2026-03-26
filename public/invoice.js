@@ -51,8 +51,9 @@ copyAddressButton.addEventListener("click", async () => {
     return;
   }
 
-  await navigator.clipboard.writeText(currentInvoice.usdc_ata);
-  copyAddressButton.textContent = `Copied \u2713 ${addressTail(currentInvoice.usdc_ata)}`;
+  const paymentRecipient = getPaymentRecipient(currentInvoice);
+  await navigator.clipboard.writeText(paymentRecipient);
+  copyAddressButton.textContent = `Copied \u2713 ${addressTail(paymentRecipient)}`;
 
   if (copyResetTimer) {
     window.clearTimeout(copyResetTimer);
@@ -102,6 +103,7 @@ function renderInvoice(invoice) {
   const hasDetectedPayment = paidAmount > 0 && invoice.status !== "paid";
   const hasObservedPayment = Boolean(invoice.payment_observed) && invoice.status !== "paid" && !hasDetectedPayment;
   const txUrl = invoice.latest_payment_tx_url || invoice.payment_observed_tx_url;
+  const paymentRecipient = getPaymentRecipient(invoice);
   const variant = invoice.status === "paid" ? "paid" : hasDetectedPayment ? "detected" : hasObservedPayment ? "confirming" : "waiting";
 
   document.title = invoice.status === "paid" ? "Aurefly Receipt" : "Aurefly Invoice";
@@ -113,7 +115,7 @@ function renderInvoice(invoice) {
   invoiceFeeRow.classList.toggle("hidden", feeAmount <= 0);
   invoiceDescription.textContent = invoice.description || "";
   invoiceDescription.classList.toggle("hidden", !invoice.description);
-  address.textContent = formatAddress(invoice.usdc_ata);
+  address.textContent = formatAddress(paymentRecipient);
   if (paymentRouteReady) {
     qr.src = `/api/v1/public/invoices/${invoice.id}/qr.svg`;
     qr.hidden = false;
@@ -257,6 +259,16 @@ function formatAddress(value) {
 
 function addressTail(value) {
   return value.slice(-5);
+}
+
+function getPaymentRecipient(invoice) {
+  if (!invoice || !invoice.payment_uri) {
+    return invoice?.wallet_pubkey || invoice?.usdc_ata || "-";
+  }
+
+  const [recipient] = String(invoice.payment_uri).split("?");
+  const cleaned = recipient.replace(/^solana:/, "").trim();
+  return cleaned || invoice.wallet_pubkey || invoice.usdc_ata || "-";
 }
 
 function invoiceHasRequiredReference(invoice) {

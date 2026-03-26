@@ -85,6 +85,8 @@ def main():
 
     qr_status, qr_headers, body = request(f"/api/v1/public/invoices/{invoice['id']}/qr.svg")
     qr_svg = body.decode()
+    payment_recipient = invoice["payment_uri"].split("?", 1)[0].replace("solana:", "")
+    public_payment_recipient = public_invoice.get("payment_uri", "").split("?", 1)[0].replace("solana:", "")
 
     summary = {
         "email": email,
@@ -107,9 +109,11 @@ def main():
         "invoice_paid_amount_usdc": invoice["paid_amount_usdc"],
         "invoice_usdc_ata": invoice["usdc_ata"],
         "payment_uri": invoice["payment_uri"],
+        "payment_recipient": payment_recipient,
         "payment_uri_has_reference": "&reference=" in invoice["payment_uri"],
         "payment_uri_has_exact_reference": f"&reference={invoice['reference_pubkey']}" in invoice["payment_uri"],
         "private_invoice_uses_requested_payout": invoice["usdc_ata"] == PAYOUT_ADDRESS,
+        "private_payment_uri_uses_wallet_pubkey": payment_recipient == invoice["wallet_pubkey"],
         "invoice_list_count": len(invoices),
         "private_invoice_has_client_email": any(
             row["id"] == invoice["id"] and row.get("client_email") == "client@example.com" for row in invoices
@@ -118,8 +122,10 @@ def main():
         "public_invoice_has_client_email": "client_email" in public_invoice,
         "public_invoice_reference_pubkey": public_invoice.get("reference_pubkey"),
         "public_invoice_payment_uri": public_invoice.get("payment_uri"),
+        "public_payment_recipient": public_payment_recipient,
         "public_payment_uri_has_exact_reference": f"&reference={invoice['reference_pubkey']}" in public_invoice.get("payment_uri", ""),
         "public_payment_uri_matches_private": public_invoice.get("payment_uri") == invoice["payment_uri"],
+        "public_payment_uri_uses_wallet_pubkey": public_payment_recipient == invoice["wallet_pubkey"],
         "public_page_has_heading": "Scan to pay or use the Aurefly payment link." in public_page and "Payments usually confirm in ~10-15 seconds." in public_page,
         "public_page_has_wallet_hint": "Use the Aurefly payment link or QR so your payment is credited automatically." in public_page,
         "qr_status": qr_status,
@@ -133,12 +139,16 @@ def main():
         raise SystemExit(f"landing page product framing regression: {summary}")
     if not summary["payment_uri_has_exact_reference"]:
         raise SystemExit(f"private payment URI missing exact reference: {summary}")
+    if not summary["private_payment_uri_uses_wallet_pubkey"]:
+        raise SystemExit(f"private payment URI must use wallet pubkey recipient: {summary}")
     if summary["public_invoice_reference_pubkey"] != invoice["reference_pubkey"]:
         raise SystemExit(f"public invoice reference mismatch: {summary}")
     if not summary["public_payment_uri_has_exact_reference"]:
         raise SystemExit(f"public payment URI missing exact reference: {summary}")
     if not summary["public_payment_uri_matches_private"]:
         raise SystemExit(f"public/private payment URI mismatch: {summary}")
+    if not summary["public_payment_uri_uses_wallet_pubkey"]:
+        raise SystemExit(f"public payment URI must use wallet pubkey recipient: {summary}")
     if not summary["public_page_has_heading"] or not summary["public_page_has_wallet_hint"]:
         raise SystemExit(f"public pay page regression: {summary}")
     if qr_status != 200 or "image/svg+xml" not in (summary["qr_content_type"] or "") or not summary["qr_has_svg"]:

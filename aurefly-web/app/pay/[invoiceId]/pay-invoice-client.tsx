@@ -25,7 +25,7 @@ type PayInvoiceClientProps = {
 export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
   const [currentInvoice, setCurrentInvoice] = useState(invoice);
   const [awaitingWalletApproval, setAwaitingWalletApproval] = useState(false);
-  const [copyLabel, setCopyLabel] = useState("Copy USDC Account");
+  const [copyLabel, setCopyLabel] = useState("Copy Payment Address");
   const fastPollUntilRef = useRef(0);
   const copyResetRef = useRef<number | null>(null);
   const apiBase = useMemo(() => getApiBase(), []);
@@ -125,7 +125,10 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
   }, [currentInvoice.paid_amount_usdc, currentInvoice.payment_observed, currentInvoice.status]);
 
   const paymentRouteReady = invoiceHasRequiredReference(currentInvoice);
-  const paymentRecipient = getPaymentRecipient(currentInvoice.payment_uri, currentInvoice.usdc_ata);
+  const paymentRecipient = getPaymentRecipient(
+    currentInvoice.payment_uri,
+    currentInvoice.wallet_pubkey || currentInvoice.usdc_ata,
+  );
   const paidAmount = Number(currentInvoice.paid_amount_usdc || 0);
   const hasDetectedPayment = paidAmount > 0 && currentInvoice.status !== "paid";
   const hasObservedPayment =
@@ -189,7 +192,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
     }
 
     copyResetRef.current = window.setTimeout(() => {
-      setCopyLabel(currentInvoice.status === "paid" ? "Copied" : "Copy USDC Account");
+      setCopyLabel(currentInvoice.status === "paid" ? "Copied" : "Copy Payment Address");
     }, 1800);
   }
 
@@ -299,24 +302,27 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
                 <div className="grid gap-3">
                   <div className="grid gap-2 text-left">
                     <span className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
-                      USDC account
+                      Payment address
                     </span>
                     <code className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white">
                       {shortAddress(paymentRecipient)}
                     </code>
                     <p className="text-xs leading-6 text-slate-400">
-                      The QR and pay button both send to this exact USDC destination.
+                      The QR and pay button both use this exact Solana Pay destination.
                     </p>
                   </div>
 
-                  {currentInvoice.wallet_pubkey ? (
+                  {currentInvoice.usdc_ata ? (
                     <div className="grid gap-2 text-left">
                       <span className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
-                        Merchant wallet
+                        USDC settlement account
                       </span>
                       <code className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white">
-                        {shortAddress(currentInvoice.wallet_pubkey)}
+                        {shortAddress(currentInvoice.usdc_ata)}
                       </code>
+                      <p className="text-xs leading-6 text-slate-400">
+                        Your wallet routes the USDC transfer here automatically.
+                      </p>
                     </div>
                   ) : null}
                 </div>

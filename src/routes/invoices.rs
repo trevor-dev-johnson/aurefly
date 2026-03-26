@@ -68,7 +68,7 @@ impl InvoiceResponse {
             .to_string();
         let paid_amount_usdc = invoice.paid_amount_usdc.normalize().to_string();
         let payment_uri = build_payment_uri(
-            &invoice.usdc_ata,
+            &invoice.wallet_pubkey,
             &amount_usdc,
             &invoice.usdc_mint,
             reference_pubkey,
@@ -120,12 +120,14 @@ fn build_explorer_tx_url(signature: &str) -> String {
 }
 
 pub(crate) fn build_payment_uri(
-    usdc_ata: &str,
+    wallet_pubkey: &str,
     amount_usdc: &str,
     usdc_mint: &str,
     reference_pubkey: &str,
 ) -> String {
-    format!("solana:{usdc_ata}?amount={amount_usdc}&spl-token={usdc_mint}&reference={reference_pubkey}")
+    format!(
+        "solana:{wallet_pubkey}?amount={amount_usdc}&spl-token={usdc_mint}&reference={reference_pubkey}"
+    )
 }
 
 pub(crate) fn require_reference_pubkey<'a>(
@@ -137,6 +139,24 @@ pub(crate) fn require_reference_pubkey<'a>(
         _ => Err(AppError::Internal(anyhow::anyhow!(
             "invoice {invoice_id} is missing required Solana Pay reference"
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_payment_uri;
+
+    #[test]
+    fn payment_uri_uses_wallet_recipient_for_spl_transfers() {
+        let wallet_pubkey = "GRLaUZb5s9DEsANDgqpUrzfeyCPW4MVtPQgUzDHHa9mR";
+        let uri = build_payment_uri(
+            wallet_pubkey,
+            "0.5",
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "AVivqD14MroUWfSBQwV9V8zkh1n5Wpb1YrBkp4bj3a9o",
+        );
+
+        assert!(uri.starts_with(&format!("solana:{wallet_pubkey}?")));
     }
 }
 

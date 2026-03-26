@@ -54,7 +54,7 @@ async fn invoice_qr(
     let invoice = invoices::get(&state.pool, invoice_id).await?;
     let reference_pubkey = require_reference_pubkey(invoice.id, invoice.reference_pubkey.as_deref())?;
     let payment_uri = build_payment_uri(
-        &invoice.usdc_ata,
+        &invoice.wallet_pubkey,
         &invoice.amount_usdc.normalize().to_string(),
         &invoice.usdc_mint,
         reference_pubkey,

@@ -69,6 +69,8 @@ async function main() {
     invoice_amount_usdc: invoice.amount_usdc,
     payment_uri_has_exact_reference: invoice.payment_uri.includes(`&reference=${invoice.reference_pubkey}`),
     public_payment_uri_matches_private: publicInvoice.payment_uri === invoice.payment_uri,
+    payment_recipient_wallet: payment.recipientWallet,
+    payment_recipient_ata: payment.recipientAta,
     tx_signature: payment.signature,
     finalized_in_secs: payment.finalizedInSecs,
     observed_status_before_paid: observedInvoice.status,
@@ -88,7 +90,8 @@ async function main() {
 async function payInvoiceFromUri(connection, payer, paymentUri) {
   const parsed = parsePaymentUri(paymentUri);
   const mint = new PublicKey(parsed.mint);
-  const destination = new PublicKey(parsed.recipient);
+  const recipientWallet = new PublicKey(parsed.recipient);
+  const destination = deriveAta(recipientWallet, mint);
   const references = parsed.references.map((value) => new PublicKey(value));
   const owner = payer.publicKey;
   const source = deriveAta(owner, mint);
@@ -139,6 +142,8 @@ async function payInvoiceFromUri(connection, payer, paymentUri) {
 
   return {
     signature,
+    recipientWallet: recipientWallet.toBase58(),
+    recipientAta: destination.toBase58(),
     finalizedInSecs: roundSeconds(Date.now() - startedAt),
   };
 }
