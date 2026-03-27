@@ -15,7 +15,6 @@ mod treasury;
 
 use anyhow::Context;
 use std::time::Duration;
-use solana_sdk::signer::Signer;
 use tokio::net::TcpListener;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -24,7 +23,6 @@ use crate::{
     rate_limit::AuthRateLimiter,
     services::invoices,
     state::AppState,
-    treasury::{load_existing_keypair, load_existing_keypair_from_json, TreasuryWallet},
 };
 
 #[tokio::main]
@@ -49,63 +47,10 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-    let treasury = TreasuryWallet::load_or_create(
-        &config.treasury_wallet_path,
-        config.treasury_wallet_json.as_deref(),
-    )
-        .context("failed to load treasury wallet")?;
     let solana = SolanaRpcClient::new(config.solana_rpc_url.clone());
     let redacted_rpc_url = redact_rpc_url(&config.solana_rpc_url);
     let rpc_provider = detect_rpc_provider(&config.solana_rpc_url);
     tracing::info!(rpc_provider, rpc_url = %redacted_rpc_url, "using Solana RPC endpoint");
-    let fee_payer = if let Some(keypair_json) = config.solana_fee_payer_json.as_deref() {
-        let fee_payer = load_existing_keypair_from_json(keypair_json)
-            .context("failed to load Solana fee payer")?;
-        tracing::info!(
-            fee_payer = %fee_payer.pubkey(),
-            "loaded Solana fee payer from SOLANA_FEE_PAYER_JSON for ATA creation"
-        );
-        fee_payer
-    } else if let Some(path) = config.solana_fee_payer_path.as_deref() {
-        let fee_payer = load_existing_keypair(path).context("failed to load Solana fee payer")?;
-        tracing::info!(
-            fee_payer = %fee_payer.pubkey(),
-            fee_payer_path = %path,
-            "loaded Solana fee payer for ATA creation"
-        );
-        fee_payer
-    } else {
-        tracing::info!(
-            fee_payer = %treasury.wallet_pubkey,
-            "using treasury wallet as ATA creation fee payer"
-        );
-        treasury.keypair.clone()
-    };
-
-    if let Some(signature) = solana
-        .ensure_associated_token_account(&treasury, fee_payer.as_ref())
-        .await
-        .context("failed to ensure treasury USDC ATA exists")?
-    {
-        tracing::info!(
-            wallet_pubkey = %treasury.wallet_pubkey,
-            usdc_ata = %treasury.usdc_ata,
-            fee_payer = %fee_payer.pubkey(),
-            rpc_provider,
-            rpc_url = %redacted_rpc_url,
-            tx_signature = %signature,
-            "created treasury USDC ATA"
-        );
-    } else {
-        tracing::info!(
-            wallet_pubkey = %treasury.wallet_pubkey,
-            usdc_ata = %treasury.usdc_ata,
-            fee_payer = %fee_payer.pubkey(),
-            rpc_provider,
-            rpc_url = %redacted_rpc_url,
-            "treasury wallet and USDC ATA are ready"
-        );
-    }
 
     tokio::spawn(detector::run(
         pool.clone(),

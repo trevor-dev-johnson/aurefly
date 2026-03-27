@@ -38,11 +38,7 @@ docker compose up --build
 curl http://localhost:8080/api/v1/health
 ```
 
-4. On first boot the API creates `data/treasury-wallet.json` and reuses it on later restarts if you do not provide wallet secrets via env vars.
-
-5. The API pre-creates the treasury wallet's USDC ATA at startup. In Docker Compose it uses your local Solana keypair at `%USERPROFILE%\.config\solana\id.json` as the ATA fee payer so the treasury wallet can stay unfunded.
-
-6. Open the app at `http://localhost:8080`, create an account, and create invoices from the dashboard.
+4. Open the app at `http://localhost:8080`, create an account, and create invoices from the dashboard.
 
 ## Hosted Deployment
 
@@ -107,12 +103,12 @@ Or:
 SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=your-helius-api-key
 ```
 
-## Treasury Notes
+## Settlement Notes
 
 - Mainnet USDC mint is hardcoded to `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`.
-- The invoice pay-to address is the USDC ATA, not the system wallet pubkey.
-- Before any invoice is created, startup ensures the treasury USDC ATA exists on-chain.
-- If the treasury wallet is new, set `SOLANA_FEE_PAYER_PATH` to a funded Solana keypair that can pay the one-time ATA rent.
+- Merchants can enter a wallet address or USDC ATA. Aurefly stores the derived USDC ATA as the real settlement destination.
+- Solana Pay links and QR codes use the merchant wallet pubkey as the transfer recipient, and the wallet routes the token transfer into the ATA during payment.
+- The detector still matches and credits against the stored USDC ATA plus the invoice reference.
 
 ## API Overview
 
