@@ -6,7 +6,6 @@ use crate::{
     error::{AppError, AppResult},
     models::invoice::Invoice,
     services::invoices,
-    state::AppState,
 };
 
 #[derive(Debug, Serialize)]
@@ -36,6 +35,10 @@ pub(crate) struct InvoiceResponse {
     latest_payment_tx_url: Option<String>,
     paid_at: Option<DateTime<Utc>>,
     created_at: DateTime<Utc>,
+}
+
+pub(crate) struct PaymentObservation {
+    pub(crate) tx_signature: String,
 }
 
 impl InvoiceResponse {
@@ -158,62 +161,4 @@ mod tests {
 
         assert!(uri.starts_with(&format!("solana:{wallet_pubkey}?")));
     }
-}
-
-pub(crate) struct PaymentObservation {
-    pub(crate) tx_signature: String,
-}
-
-pub(crate) async fn observe_invoice_payment(
-    state: &AppState,
-    invoice: &Invoice,
-) -> AppResult<Option<PaymentObservation>> {
-    if invoice.status == "paid" {
-        return Ok(None);
-    }
-
-    let Some(reference_pubkey) = invoice.reference_pubkey.as_deref() else {
-        return Ok(None);
-    };
-
-    let signatures = state
-        .solana
-        .get_confirmed_signatures_for_address(&invoice.usdc_ata, 12, None)
-        .await?;
-
-    for signature in signatures {
-        if signature.err.is_some() {
-            continue;
-        }
-
-        if let Some(block_time) = signature.block_time {
-            if block_time + 5 < invoice.created_at.timestamp() {
-                continue;
-            }
-        }
-
-        let Some(transfer) = state
-            .solana
-            .get_confirmed_usdc_transfer_to_token_account(
-                &signature.signature,
-                &invoice.usdc_ata,
-                &invoice.usdc_mint,
-            )
-            .await?
-        else {
-            continue;
-        };
-
-        if transfer
-            .account_keys
-            .iter()
-            .any(|account_key| account_key == reference_pubkey)
-        {
-            return Ok(Some(PaymentObservation {
-                tx_signature: signature.signature,
-            }));
-        }
-    }
-
-    Ok(None)
 }

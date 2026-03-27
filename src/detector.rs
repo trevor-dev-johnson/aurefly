@@ -8,6 +8,7 @@ use futures_util::{SinkExt, StreamExt};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use sqlx::PgPool;
+use tokio::time::Instant;
 use tokio::task::JoinHandle;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use uuid::Uuid;
@@ -15,6 +16,7 @@ use uuid::Uuid;
 use crate::{
     clients::solana::{SignatureInfo, SolanaRpcClient},
     error::{AppError, AppResult},
+    solana::UsdcSettlement,
     services::{invoices, payments, unmatched_payments},
 };
 
@@ -29,11 +31,32 @@ struct DetectorCursor {
     last_seen_signature: Option<String>,
 }
 
+#[derive(Default)]
+struct PollStats {
+    pending_target_count: usize,
+    new_signature_count: usize,
+    processed_signature_count: usize,
+}
+
+const DETECTOR_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
+
 pub async fn run(
     pool: PgPool,
     solana: SolanaRpcClient,
     config: PaymentDetectorConfig,
 ) {
+    tracing::info!(
+        signal_source = DetectionSource::Polling.as_str(),
+        poll_interval_secs = config.poll_interval.as_secs(),
+        signature_limit = config.signature_limit,
+        "payment detector polling loop started"
+    );
+    tracing::info!(
+        signal_source = DetectionSource::LogsSubscribe.as_str(),
+        websocket_enabled = solana.websocket_url().is_some(),
+        "payment detector websocket manager started"
+    );
+
     let poll_pool = pool.clone();
     let poll_solana = solana.clone();
     let poll_config = config.clone();
@@ -51,11 +74,24 @@ async fn run_poll_loop(
 ) {
     let mut cursors = HashMap::<String, DetectorCursor>::new();
     let mut consecutive_rate_limits = 0u32;
+    let mut last_heartbeat = Instant::now() - DETECTOR_HEARTBEAT_INTERVAL;
 
     loop {
         match poll_once(&pool, &solana, &config, &mut cursors).await {
-            Ok(()) => {
+            Ok(stats) => {
                 consecutive_rate_limits = 0;
+                if last_heartbeat.elapsed() >= DETECTOR_HEARTBEAT_INTERVAL {
+                    tracing::info!(
+                        signal_source = DetectionSource::Polling.as_str(),
+                        pending_targets = stats.pending_target_count,
+                        tracked_cursors = cursors.len(),
+                        new_signatures = stats.new_signature_count,
+                        processed_signatures = stats.processed_signature_count,
+                        poll_interval_secs = config.poll_interval.as_secs(),
+                        "payment detector alive"
+                    );
+                    last_heartbeat = Instant::now();
+                }
                 tokio::time::sleep(config.poll_interval).await;
             }
             Err(error @ AppError::RateLimited { .. }) => {
@@ -88,10 +124,12 @@ async fn run_logs_manager_loop(pool: PgPool, solana: SolanaRpcClient) {
         return;
     };
     let mut subscriptions = HashMap::<String, JoinHandle<()>>::new();
+    let mut last_heartbeat = Instant::now() - DETECTOR_HEARTBEAT_INTERVAL;
 
     loop {
         match invoices::list_pending_settlement_targets(&pool).await {
             Ok(targets) => {
+                let targets = sanitize_pending_targets(targets);
                 let active_targets = targets
                     .iter()
                     .map(|target| target.usdc_ata.clone())
@@ -137,6 +175,16 @@ async fn run_logs_manager_loop(pool: PgPool, solana: SolanaRpcClient) {
                     });
 
                     subscriptions.insert(target.usdc_ata, handle);
+                }
+
+                if last_heartbeat.elapsed() >= DETECTOR_HEARTBEAT_INTERVAL {
+                    tracing::info!(
+                        signal_source = DetectionSource::LogsSubscribe.as_str(),
+                        pending_targets = active_targets.len(),
+                        active_subscriptions = subscriptions.len(),
+                        "payment detector websocket manager alive"
+                    );
+                    last_heartbeat = Instant::now();
                 }
             }
             Err(error) => {
@@ -197,8 +245,12 @@ async fn poll_once(
     solana: &SolanaRpcClient,
     config: &PaymentDetectorConfig,
     cursors: &mut HashMap<String, DetectorCursor>,
-) -> AppResult<()> {
-    let targets = invoices::list_pending_settlement_targets(pool).await?;
+) -> AppResult<PollStats> {
+    let targets = sanitize_pending_targets(invoices::list_pending_settlement_targets(pool).await?);
+    let mut stats = PollStats {
+        pending_target_count: targets.len(),
+        ..PollStats::default()
+    };
     let active_targets = targets
         .iter()
         .map(|target| target.usdc_ata.clone())
@@ -219,6 +271,15 @@ async fn poll_once(
             continue;
         }
 
+        tracing::info!(
+            recipient_token_account = %target.usdc_ata,
+            token_mint = %target.usdc_mint,
+            new_signatures = signatures.len(),
+            signal_source = DetectionSource::Polling.as_str(),
+            "payment detector found finalized signatures to inspect"
+        );
+        stats.new_signature_count += signatures.len();
+
         let newest_signature = signatures.first().map(|signature| signature.signature.clone());
         signatures.reverse();
 
@@ -232,12 +293,13 @@ async fn poll_once(
                 DetectionSource::Polling,
             )
             .await?;
+            stats.processed_signature_count += 1;
         }
 
         cursor.last_seen_signature = newest_signature;
     }
 
-    Ok(())
+    Ok(stats)
 }
 
 async fn consume_logs_subscription(
@@ -388,13 +450,25 @@ async fn process_signature(
         return Ok(());
     }
 
-    let Some(transfer) = solana
+    let transfer = solana
         .get_finalized_usdc_transfer_to_token_account(
             &signature.signature,
             recipient_token_account,
             token_mint,
         )
-        .await?
+        .await
+        .map_err(|error| {
+            tracing::warn!(
+                error = %error,
+                tx_signature = %signature.signature,
+                recipient_token_account = %recipient_token_account,
+                token_mint = %token_mint,
+                signal_source = detection_source.as_str(),
+                "payment detector failed while fetching finalized transaction details"
+            );
+            error
+        })?;
+    let Some(transfer) = transfer
     else {
         tracing::info!(
             tx_signature = %signature.signature,
@@ -418,8 +492,31 @@ async fn process_signature(
         token_mint,
         &transfer.account_keys,
     )
-    .await?;
-    let any_reference_match = invoices::find_reference_match_any(pool, &transfer.account_keys).await?;
+    .await
+    .map_err(|error| {
+        tracing::error!(
+            error = %error,
+            tx_signature = %signature.signature,
+            recipient_token_account = %recipient_token_account,
+            token_mint = %token_mint,
+            signal_source = detection_source.as_str(),
+            "payment detector failed while resolving invoice reference match for destination"
+        );
+        error
+    })?;
+    let any_reference_match = invoices::find_reference_match_any(pool, &transfer.account_keys)
+        .await
+        .map_err(|error| {
+            tracing::error!(
+                error = %error,
+                tx_signature = %signature.signature,
+                recipient_token_account = %recipient_token_account,
+                token_mint = %token_mint,
+                signal_source = detection_source.as_str(),
+                "payment detector failed while resolving invoice reference match across invoices"
+            );
+            error
+        })?;
 
     let settlement = resolve_reference_settlement(
         target_reference_match,
@@ -465,7 +562,19 @@ async fn process_signature(
             slot: Some(signature.slot),
         },
     )
-    .await?;
+    .await
+    .map_err(|error| {
+        tracing::error!(
+            error = %error,
+            tx_signature = %signature.signature,
+            invoice_id = %invoice.id,
+            recipient_token_account = %recipient_token_account,
+            token_mint = %token_mint,
+            signal_source = detection_source.as_str(),
+            "payment detector failed while recording confirmed payment"
+        );
+        error
+    })?;
 
     if !payment_result.inserted {
         tracing::info!(
@@ -645,6 +754,43 @@ fn parse_logs_notification(payload: &str) -> AppResult<Option<LogsNotification>>
         | LogsWebsocketMessage::Notification { .. }
         | LogsWebsocketMessage::Unknown => None,
     })
+}
+
+fn sanitize_pending_targets(
+    targets: Vec<invoices::PendingSettlementTarget>,
+) -> Vec<invoices::PendingSettlementTarget> {
+    targets
+        .into_iter()
+        .filter(|target| match UsdcSettlement::from_wallet_pubkey(&target.wallet_pubkey) {
+            Ok(settlement)
+                if settlement.usdc_ata == target.usdc_ata
+                    && settlement.usdc_mint == target.usdc_mint =>
+            {
+                true
+            }
+            Ok(settlement) => {
+                tracing::warn!(
+                    wallet_pubkey = %target.wallet_pubkey,
+                    recipient_token_account = %target.usdc_ata,
+                    expected_usdc_ata = %settlement.usdc_ata,
+                    expected_usdc_mint = %settlement.usdc_mint,
+                    signal_source = DetectionSource::Polling.as_str(),
+                    "payment detector skipped invalid pending settlement target"
+                );
+                false
+            }
+            Err(error) => {
+                tracing::warn!(
+                    error = %error,
+                    wallet_pubkey = %target.wallet_pubkey,
+                    recipient_token_account = %target.usdc_ata,
+                    signal_source = DetectionSource::Polling.as_str(),
+                    "payment detector skipped pending settlement target with invalid wallet"
+                );
+                false
+            }
+        })
+        .collect()
 }
 
 #[derive(Clone, Copy)]

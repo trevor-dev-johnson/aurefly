@@ -68,7 +68,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
 
     const refreshInvoice = async () => {
       try {
-        const nextInvoice = await fetchPublicInvoice(currentInvoice.id, true);
+        const nextInvoice = await fetchPublicInvoice(currentInvoice.id, false);
         if (cancelled) {
           return;
         }

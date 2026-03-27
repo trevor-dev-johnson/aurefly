@@ -287,10 +287,10 @@ pub async fn list_pending_settlement_targets(
 ) -> AppResult<Vec<PendingSettlementTarget>> {
     let targets = sqlx::query_as::<_, PendingSettlementTarget>(
         r#"
-        SELECT DISTINCT usdc_ata, usdc_mint
+        SELECT DISTINCT ON (usdc_ata, usdc_mint) usdc_ata, usdc_mint, wallet_pubkey
         FROM invoices
         WHERE status = 'pending'
-        ORDER BY usdc_ata ASC
+        ORDER BY usdc_ata ASC, usdc_mint ASC, created_at DESC
         "#,
     )
     .fetch_all(pool)
@@ -353,4 +353,5 @@ pub struct ReferenceMatchCandidate {
 pub struct PendingSettlementTarget {
     pub usdc_ata: String,
     pub usdc_mint: String,
+    pub wallet_pubkey: String,
 }

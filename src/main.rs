@@ -52,14 +52,29 @@ async fn main() -> anyhow::Result<()> {
     let rpc_provider = detect_rpc_provider(&config.solana_rpc_url);
     tracing::info!(rpc_provider, rpc_url = %redacted_rpc_url, "using Solana RPC endpoint");
 
-    tokio::spawn(detector::run(
+    let detector_poll_interval = Duration::from_secs(config.payment_detector_poll_interval_secs);
+    let detector_signature_limit = config.payment_detector_signature_limit;
+    tracing::info!(
+        poll_interval_secs = detector_poll_interval.as_secs(),
+        signature_limit = detector_signature_limit,
+        websocket_enabled = solana.websocket_url().is_some(),
+        "starting payment detector"
+    );
+
+    let detector_handle = tokio::spawn(detector::run(
         pool.clone(),
         solana.clone(),
         PaymentDetectorConfig {
-            poll_interval: Duration::from_secs(config.payment_detector_poll_interval_secs),
-            signature_limit: config.payment_detector_signature_limit,
+            poll_interval: detector_poll_interval,
+            signature_limit: detector_signature_limit,
         },
     ));
+    tokio::spawn(async move {
+        match detector_handle.await {
+            Ok(()) => tracing::error!("payment detector exited unexpectedly"),
+            Err(error) => tracing::error!(error = %error, "payment detector task crashed"),
+        }
+    });
 
     let auth_rate_limiter = AuthRateLimiter::new(
         config.auth_rate_limit_max_requests,

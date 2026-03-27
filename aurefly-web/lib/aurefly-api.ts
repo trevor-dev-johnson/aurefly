@@ -100,7 +100,7 @@ async function apiFetch<T>(path: string, options: ApiFetchOptions = {}) {
   return data as T;
 }
 
-export async function fetchPublicInvoice(invoiceId: string, observePayment = true) {
+export async function fetchPublicInvoice(invoiceId: string, observePayment = false) {
   const url = new URL(`/api/v1/public/invoices/${invoiceId}`, getApiBase());
   if (observePayment) {
     url.searchParams.set("observe_payment", "true");
