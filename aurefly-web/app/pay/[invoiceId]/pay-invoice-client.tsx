@@ -145,6 +145,8 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
       ? "paid"
       : currentInvoice.status === "cancelled"
         ? "cancelled"
+      : currentInvoice.status === "expired"
+        ? "expired"
       : hasDetectedPayment
         ? "detected"
         : hasObservedPayment
@@ -156,6 +158,8 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
       ? "Payment complete"
       : currentInvoice.status === "cancelled"
         ? "Invoice cancelled"
+      : currentInvoice.status === "expired"
+        ? "Invoice expired"
       : hasDetectedPayment
         ? "Payment detected..."
         : hasObservedPayment
@@ -168,6 +172,8 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
       ? `${formatMoney(currentInvoice.paid_amount_usdc)} received.`
       : currentInvoice.status === "cancelled"
         ? "This invoice is no longer accepting payment."
+      : currentInvoice.status === "expired"
+        ? "This invoice expired before payment was confirmed."
       : hasDetectedPayment
         ? `${formatMoney(currentInvoice.paid_amount_usdc)} received so far. Waiting for the full amount.`
         : hasObservedPayment
@@ -181,6 +187,8 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
       ? "Transaction confirmed on Solana."
       : currentInvoice.status === "cancelled"
         ? "Ask the merchant for a new invoice if you still need to pay."
+        : currentInvoice.status === "expired"
+          ? "Ask the merchant for a new invoice if you still need to pay."
         : null;
   function handlePayClick(event: React.MouseEvent<HTMLAnchorElement>) {
     if (currentInvoice.status !== "pending") {
@@ -257,6 +265,8 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
                 className={`rounded-[1.4rem] border px-4 py-4 sm:px-5 sm:py-5 ${
                   stateVariant === "paid"
                     ? "border-emerald-400/18 bg-emerald-400/8"
+                    : stateVariant === "expired"
+                      ? "border-amber-400/18 bg-amber-400/10"
                     : stateVariant === "detected" || stateVariant === "confirming"
                       ? "border-sky-400/20 bg-sky-400/10"
                       : "border-white/8 bg-white/[0.04]"
@@ -266,8 +276,14 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
                   {currentInvoice.status === "pending" ? (
                     <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent text-slate-300" />
                   ) : (
-                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400/18 text-[10px] text-emerald-300">
-                      ✓
+                    <span
+                      className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${
+                        currentInvoice.status === "expired"
+                          ? "bg-amber-400/18 text-amber-300"
+                          : "bg-emerald-400/18 text-emerald-300"
+                      }`}
+                    >
+                      {currentInvoice.status === "expired" ? "!" : "✓"}
                     </span>
                   )}
                   <strong className="text-base font-semibold text-white">{stateLabel}</strong>
@@ -304,13 +320,15 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
                 </a>
               ) : null}
 
-              {currentInvoice.status === "cancelled" ? (
+              {currentInvoice.status === "cancelled" || currentInvoice.status === "expired" ? (
                 <div className="grid gap-3 rounded-[1.45rem] border border-white/6 bg-white/[0.025] p-5 text-left">
                   <span className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
                     Invoice status
                   </span>
                   <p className="text-sm leading-7 text-slate-300">
-                    This invoice has been cancelled by the merchant and should no longer be paid.
+                    {currentInvoice.status === "expired"
+                      ? "This invoice expired and should no longer be paid."
+                      : "This invoice has been cancelled by the merchant and should no longer be paid."}
                   </p>
                 </div>
               ) : (

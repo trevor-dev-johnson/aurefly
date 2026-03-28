@@ -20,6 +20,7 @@ pub struct Config {
     pub auth_rate_limit_window_secs: u64,
     pub payment_detector_poll_interval_secs: u64,
     pub payment_detector_signature_limit: usize,
+    pub invoice_pending_ttl_secs: u64,
 }
 
 impl Config {
@@ -95,6 +96,10 @@ impl Config {
             .unwrap_or_else(|_| "25".to_string())
             .parse()
             .context("PAYMENT_DETECTOR_SIGNATURE_LIMIT must be a valid usize")?;
+        let invoice_pending_ttl_secs = env::var("INVOICE_PENDING_TTL_SECS")
+            .unwrap_or_else(|_| "1800".to_string())
+            .parse()
+            .context("INVOICE_PENDING_TTL_SECS must be a valid u64")?;
 
         Ok(Self {
             database_url,
@@ -110,6 +115,7 @@ impl Config {
             auth_rate_limit_window_secs,
             payment_detector_poll_interval_secs,
             payment_detector_signature_limit,
+            invoice_pending_ttl_secs,
         })
     }
 

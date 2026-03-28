@@ -582,6 +582,8 @@ export function DashboardClient() {
                   const paymentLabel =
                     invoice.status === "cancelled"
                       ? "Cancelled"
+                      : invoice.status === "expired"
+                        ? "Expired"
                       : paidAmount > 0
                       ? feeAmount > 0
                         ? `${formatMoney(paidAmount)} paid · ${formatMoney(netAmount)} after fee`
@@ -634,6 +636,8 @@ export function DashboardClient() {
                               ? "border border-emerald-400/18 bg-emerald-400/10 text-emerald-200"
                               : invoice.status === "cancelled"
                                 ? "border border-rose-400/18 bg-rose-400/10 text-rose-200"
+                              : invoice.status === "expired"
+                                ? "border border-amber-400/18 bg-amber-400/10 text-amber-200"
                               : "border border-white/10 bg-white/[0.05] text-slate-300"
                           }`}
                         >
@@ -641,6 +645,8 @@ export function DashboardClient() {
                             ? "Paid"
                             : invoice.status === "cancelled"
                               ? "Cancelled"
+                              : invoice.status === "expired"
+                                ? "Expired"
                               : "Pending"}
                         </span>
                         <div className="flex items-center gap-4 lg:flex-col lg:items-end">

@@ -85,6 +85,7 @@ ALLOWED_ORIGINS=https://aurefly.com,https://www.aurefly.com
 HELIUS_API_KEY=<your-helius-key>
 TREASURY_WALLET_JSON=<optional>
 SOLANA_FEE_PAYER_JSON=<optional>
+INVOICE_PENDING_TTL_SECS=1800
 RUST_LOG=info
 ```
 
@@ -112,6 +113,7 @@ Authenticated invoice management:
 - Merchants can paste a wallet address or USDC token account
 - Aurefly derives and stores the real USDC ATA internally
 - Solana Pay links use the merchant wallet pubkey as recipient
+- Pending invoices automatically expire after the configured TTL so the detector does not keep scanning stale requests forever
 - The detector credits invoices only by:
   - destination USDC ATA
   - USDC mint

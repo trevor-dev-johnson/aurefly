@@ -54,9 +54,11 @@ async fn main() -> anyhow::Result<()> {
 
     let detector_poll_interval = Duration::from_secs(config.payment_detector_poll_interval_secs);
     let detector_signature_limit = config.payment_detector_signature_limit;
+    let invoice_pending_ttl = Duration::from_secs(config.invoice_pending_ttl_secs);
     tracing::info!(
         poll_interval_secs = detector_poll_interval.as_secs(),
         signature_limit = detector_signature_limit,
+        pending_invoice_ttl_secs = invoice_pending_ttl.as_secs(),
         websocket_enabled = solana.websocket_url().is_some(),
         "starting payment detector"
     );
@@ -67,6 +69,7 @@ async fn main() -> anyhow::Result<()> {
         PaymentDetectorConfig {
             poll_interval: detector_poll_interval,
             signature_limit: detector_signature_limit,
+            pending_invoice_ttl: invoice_pending_ttl,
         },
     ));
     tokio::spawn(async move {

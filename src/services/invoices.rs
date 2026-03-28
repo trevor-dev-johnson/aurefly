@@ -1,5 +1,6 @@
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 
+use chrono::Utc;
 use rust_decimal::Decimal;
 use solana_sdk::{hash::hash, pubkey::Pubkey};
 use sqlx::PgPool;
@@ -9,6 +10,7 @@ use crate::{
     clients::solana::SolanaRpcClient,
     error::{AppError, AppResult},
     models::invoice::Invoice,
+    solana::UsdcSettlement,
 };
 
 pub const PLATFORM_FEE_BPS: i16 = 0;
@@ -348,6 +350,70 @@ pub async fn list_pending_settlement_targets(
     Ok(targets)
 }
 
+pub async fn expire_pending_older_than(pool: &PgPool, ttl: Duration) -> AppResult<u64> {
+    let ttl_seconds = i64::try_from(ttl.as_secs()).map_err(|_| {
+        AppError::Internal(anyhow::anyhow!("pending invoice TTL is too large to convert"))
+    })?;
+    let cutoff = Utc::now() - chrono::Duration::seconds(ttl_seconds);
+
+    let result = sqlx::query(
+        r#"
+        UPDATE invoices
+        SET status = 'expired'
+        WHERE status = 'pending'
+          AND created_at < $1
+        "#,
+    )
+    .bind(cutoff)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected())
+}
+
+pub async fn expire_invalid_pending_destinations(pool: &PgPool) -> AppResult<u64> {
+    let pending = sqlx::query_as::<_, PendingInvoiceDestination>(
+        r#"
+        SELECT id, wallet_pubkey, usdc_ata, usdc_mint
+        FROM invoices
+        WHERE status = 'pending'
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let invalid_ids = pending
+        .into_iter()
+        .filter_map(|invoice| match UsdcSettlement::from_wallet_pubkey(&invoice.wallet_pubkey) {
+            Ok(settlement)
+                if settlement.usdc_ata == invoice.usdc_ata
+                    && settlement.usdc_mint == invoice.usdc_mint =>
+            {
+                None
+            }
+            Ok(_) | Err(_) => Some(invoice.id),
+        })
+        .collect::<Vec<_>>();
+
+    if invalid_ids.is_empty() {
+        return Ok(0);
+    }
+
+    let result = sqlx::query(
+        r#"
+        UPDATE invoices
+        SET status = 'expired'
+        WHERE status = 'pending'
+          AND id = ANY($1)
+        "#,
+    )
+    .bind(&invalid_ids)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected())
+}
+
 pub fn invoice_reference_pubkey(invoice_id: Uuid) -> String {
     let digest = hash(invoice_id.as_bytes());
     Pubkey::new_from_array(digest.to_bytes()).to_string()
@@ -403,4 +469,12 @@ pub struct PendingSettlementTarget {
     pub usdc_ata: String,
     pub usdc_mint: String,
     pub wallet_pubkey: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct PendingInvoiceDestination {
+    id: Uuid,
+    wallet_pubkey: String,
+    usdc_ata: String,
+    usdc_mint: String,
 }

@@ -23,6 +23,7 @@ use crate::{
 pub struct PaymentDetectorConfig {
     pub poll_interval: Duration,
     pub signature_limit: usize,
+    pub pending_invoice_ttl: Duration,
 }
 
 #[derive(Default)]
@@ -44,13 +45,14 @@ pub async fn run(
     solana: SolanaRpcClient,
     config: PaymentDetectorConfig,
 ) {
-    let startup_targets = load_pending_targets(&pool).await;
+    let startup_targets = load_pending_targets(&pool, config.pending_invoice_ttl).await;
     tracing::info!(
         rpc = %solana.redacted_rpc_url(),
         ata_count = startup_targets.len(),
         ata = %format_target_preview(&startup_targets),
         poll_interval_secs = config.poll_interval.as_secs(),
         signature_limit = config.signature_limit,
+        pending_invoice_ttl_secs = config.pending_invoice_ttl.as_secs(),
         websocket_enabled = solana.websocket_url().is_some(),
         "[detector] started"
     );
@@ -71,16 +73,20 @@ pub async fn run(
     let poll_config = config.clone();
 
     tokio::join!(
-        run_heartbeat_loop(pool.clone(), solana.clone()),
+        run_heartbeat_loop(pool.clone(), solana.clone(), config.pending_invoice_ttl),
         run_poll_loop(poll_pool, poll_solana, poll_config),
-        run_logs_manager_loop(pool, solana)
+        run_logs_manager_loop(pool, solana, config.pending_invoice_ttl)
     );
 }
 
-async fn run_heartbeat_loop(pool: PgPool, solana: SolanaRpcClient) {
+async fn run_heartbeat_loop(
+    pool: PgPool,
+    solana: SolanaRpcClient,
+    pending_invoice_ttl: Duration,
+) {
     loop {
         tokio::time::sleep(DETECTOR_HEARTBEAT_INTERVAL).await;
-        let targets = load_pending_targets(&pool).await;
+        let targets = load_pending_targets(&pool, pending_invoice_ttl).await;
         tracing::info!(
             rpc = %solana.redacted_rpc_url(),
             ata_count = targets.len(),
@@ -137,7 +143,11 @@ async fn run_poll_loop(
     }
 }
 
-async fn run_logs_manager_loop(pool: PgPool, solana: SolanaRpcClient) {
+async fn run_logs_manager_loop(
+    pool: PgPool,
+    solana: SolanaRpcClient,
+    pending_invoice_ttl: Duration,
+) {
     let Some(ws_url) = solana.websocket_url().map(str::to_string) else {
         tracing::warn!("payment detector websocket disabled: unable to derive websocket URL from RPC URL");
         return;
@@ -145,66 +155,59 @@ async fn run_logs_manager_loop(pool: PgPool, solana: SolanaRpcClient) {
     let mut subscriptions = HashMap::<String, JoinHandle<()>>::new();
 
     loop {
-        match invoices::list_pending_settlement_targets(&pool).await {
-            Ok(targets) => {
-                let targets = sanitize_pending_targets(targets);
-                let active_targets = targets
-                    .iter()
-                    .map(|target| target.usdc_ata.clone())
-                    .collect::<HashSet<_>>();
+        let targets = load_pending_targets(&pool, pending_invoice_ttl).await;
+        let active_targets = targets
+            .iter()
+            .map(|target| target.usdc_ata.clone())
+            .collect::<HashSet<_>>();
 
-                let stale_targets = subscriptions
-                    .keys()
-                    .filter(|target| !active_targets.contains(*target))
-                    .cloned()
-                    .collect::<Vec<_>>();
+        let stale_targets = subscriptions
+            .keys()
+            .filter(|target| !active_targets.contains(*target))
+            .cloned()
+            .collect::<Vec<_>>();
 
-                for stale_target in stale_targets {
-                    if let Some(handle) = subscriptions.remove(&stale_target) {
-                        handle.abort();
-                        tracing::info!(
-                            recipient_token_account = %stale_target,
-                            signal_source = DetectionSource::LogsSubscribe.as_str(),
-                            "payment detector stopped logs subscription for settled destination"
-                        );
-                    }
-                }
-
-                for target in targets {
-                    if subscriptions.contains_key(&target.usdc_ata) {
-                        continue;
-                    }
-
-                    let task_pool = pool.clone();
-                    let task_solana = solana.clone();
-                    let ws_url = ws_url.clone();
-                    let recipient_token_account = target.usdc_ata.clone();
-                    let token_mint = target.usdc_mint.clone();
-
-                    let handle = tokio::spawn(async move {
-                        run_logs_subscription_loop_for_target(
-                            task_pool,
-                            task_solana,
-                            ws_url,
-                            recipient_token_account,
-                            token_mint,
-                        )
-                        .await;
-                    });
-
-                    subscriptions.insert(target.usdc_ata, handle);
-                }
-                tracing::debug!(
+        for stale_target in stale_targets {
+            if let Some(handle) = subscriptions.remove(&stale_target) {
+                handle.abort();
+                tracing::info!(
+                    recipient_token_account = %stale_target,
                     signal_source = DetectionSource::LogsSubscribe.as_str(),
-                    pending_targets = active_targets.len(),
-                    active_subscriptions = subscriptions.len(),
-                    "payment detector websocket target refresh completed"
+                    "payment detector stopped logs subscription for settled destination"
                 );
             }
-            Err(error) => {
-                tracing::warn!(error = %error, "payment detector failed to refresh pending websocket targets");
-            }
         }
+
+        for target in targets {
+            if subscriptions.contains_key(&target.usdc_ata) {
+                continue;
+            }
+
+            let task_pool = pool.clone();
+            let task_solana = solana.clone();
+            let ws_url = ws_url.clone();
+            let recipient_token_account = target.usdc_ata.clone();
+            let token_mint = target.usdc_mint.clone();
+
+            let handle = tokio::spawn(async move {
+                run_logs_subscription_loop_for_target(
+                    task_pool,
+                    task_solana,
+                    ws_url,
+                    recipient_token_account,
+                    token_mint,
+                )
+                .await;
+            });
+
+            subscriptions.insert(target.usdc_ata, handle);
+        }
+        tracing::debug!(
+            signal_source = DetectionSource::LogsSubscribe.as_str(),
+            pending_targets = active_targets.len(),
+            active_subscriptions = subscriptions.len(),
+            "payment detector websocket target refresh completed"
+        );
 
         tokio::time::sleep(Duration::from_secs(10)).await;
     }
@@ -260,7 +263,7 @@ async fn poll_once(
     config: &PaymentDetectorConfig,
     cursors: &mut HashMap<String, DetectorCursor>,
 ) -> AppResult<PollStats> {
-    let targets = sanitize_pending_targets(invoices::list_pending_settlement_targets(pool).await?);
+    let targets = load_pending_targets(pool, config.pending_invoice_ttl).await;
     let mut stats = PollStats {
         pending_target_count: targets.len(),
         ..PollStats::default()
@@ -807,7 +810,14 @@ fn sanitize_pending_targets(
         .collect()
 }
 
-async fn load_pending_targets(pool: &PgPool) -> Vec<invoices::PendingSettlementTarget> {
+async fn load_pending_targets(
+    pool: &PgPool,
+    pending_invoice_ttl: Duration,
+) -> Vec<invoices::PendingSettlementTarget> {
+    if let Err(error) = maintain_pending_invoices(pool, pending_invoice_ttl).await {
+        tracing::warn!(error = %error, "[detector] failed to maintain pending invoices");
+    }
+
     match invoices::list_pending_settlement_targets(pool).await {
         Ok(targets) => sanitize_pending_targets(targets),
         Err(error) => {
@@ -815,6 +825,27 @@ async fn load_pending_targets(pool: &PgPool) -> Vec<invoices::PendingSettlementT
             Vec::new()
         }
     }
+}
+
+async fn maintain_pending_invoices(pool: &PgPool, pending_invoice_ttl: Duration) -> AppResult<()> {
+    let expired_stale = invoices::expire_pending_older_than(pool, pending_invoice_ttl).await?;
+    if expired_stale > 0 {
+        tracing::info!(
+            expired_stale,
+            pending_invoice_ttl_secs = pending_invoice_ttl.as_secs(),
+            "[detector] expired stale pending invoices"
+        );
+    }
+
+    let expired_invalid = invoices::expire_invalid_pending_destinations(pool).await?;
+    if expired_invalid > 0 {
+        tracing::info!(
+            expired_invalid,
+            "[detector] expired invalid pending invoice destinations"
+        );
+    }
+
+    Ok(())
 }
 
 fn format_target_preview(targets: &[invoices::PendingSettlementTarget]) -> String {
