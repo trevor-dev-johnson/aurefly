@@ -15,7 +15,6 @@ import {
   formatMoney,
   getStoredToken,
   setStoredToken,
-  shortAddress,
   signOut,
   type AuthenticatedUser,
   type MerchantInvoice,
@@ -69,6 +68,14 @@ function parseAmount(value: string) {
   }
 
   return roundToSix(parsed);
+}
+
+function displayAddress(value: string | null | undefined) {
+  if (!value) {
+    return "-";
+  }
+
+  return value;
 }
 
 async function copyInvoiceUrl(invoicePath: string) {
@@ -532,15 +539,15 @@ export function DashboardClient() {
                     Open pay page
                   </Link>
                   <div className="mt-2">
-                    Wallet:{" "}
+                    Merchant wallet:{" "}
                     <code className="rounded-lg bg-black/20 px-2 py-1 font-mono text-xs text-white">
-                      {shortAddress(notice.walletPubkey)}
+                      {displayAddress(notice.walletPubkey)}
                     </code>
                   </div>
                   <div className="mt-2">
-                    USDC account:{" "}
+                    USDC settlement account:{" "}
                     <code className="rounded-lg bg-black/20 px-2 py-1 font-mono text-xs text-white">
-                      {shortAddress(notice.usdcAta)}
+                      {displayAddress(notice.usdcAta)}
                     </code>
                   </div>
                 </div>
@@ -617,6 +624,32 @@ export function DashboardClient() {
                           </div>
                         ) : null}
                         <div className="mt-2 text-sm text-slate-500">{paymentLabel}</div>
+                        <div className="mt-4 grid gap-2 rounded-[1.1rem] border border-white/6 bg-white/[0.025] p-3">
+                          <div>
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                              Payout input
+                            </div>
+                            <code className="mt-1 block break-all font-mono text-xs text-slate-200">
+                              {displayAddress(invoice.requested_payout_address)}
+                            </code>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                              Merchant wallet
+                            </div>
+                            <code className="mt-1 block break-all font-mono text-xs text-slate-200">
+                              {displayAddress(invoice.wallet_pubkey)}
+                            </code>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                              USDC settlement account
+                            </div>
+                            <code className="mt-1 block break-all font-mono text-xs text-slate-200">
+                              {displayAddress(invoice.usdc_ata)}
+                            </code>
+                          </div>
+                        </div>
                       </div>
 
                       <div className="lg:text-right">
@@ -708,7 +741,7 @@ export function DashboardClient() {
                   New invoice
                 </h2>
                 <p className="mt-3 text-sm leading-7 text-slate-300">
-                  Enter the amount, add context, and set the destination wallet for settlement.
+                  Enter the amount, add context, and lock settlement to your own Solana wallet.
                 </p>
               </div>
               <button
@@ -775,7 +808,7 @@ export function DashboardClient() {
                   placeholder="Solana wallet address"
                 />
                 <span className="text-sm leading-6 text-slate-500">
-                  Paste a wallet address or USDC account. Aurefly will derive and use the mainnet USDC account automatically.
+                  Paste your wallet address or mainnet USDC account. Aurefly will lock this invoice to your wallet-owned USDC account and never reroute payout.
                 </span>
               </label>
 

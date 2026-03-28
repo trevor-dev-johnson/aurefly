@@ -13,6 +13,8 @@ pub(crate) struct InvoiceResponse {
     id: Uuid,
     user_id: Uuid,
     reference_pubkey: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    requested_payout_address: Option<String>,
     subtotal_usdc: String,
     platform_fee_usdc: String,
     platform_fee_bps: i16,
@@ -90,6 +92,11 @@ impl InvoiceResponse {
             id: invoice.id,
             user_id: invoice.user_id,
             reference_pubkey: Some(reference_pubkey.to_string()),
+            requested_payout_address: if include_client_email {
+                Some(invoice.requested_payout_address)
+            } else {
+                None
+            },
             subtotal_usdc,
             platform_fee_usdc,
             platform_fee_bps: invoice.platform_fee_bps,

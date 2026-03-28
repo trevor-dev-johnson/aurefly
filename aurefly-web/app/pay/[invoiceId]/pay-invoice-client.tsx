@@ -344,13 +344,13 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
                   <div className="grid gap-3">
                     <div className="grid gap-2 text-left">
                       <span className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
-                        Payment address
+                        Merchant wallet
                       </span>
                       <code className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white">
                         {shortAddress(paymentRecipient)}
                       </code>
                       <p className="text-xs leading-6 text-slate-400">
-                        The QR and pay button both use this exact Solana Pay destination.
+                        The QR and pay button both use this exact Solana Pay wallet recipient.
                       </p>
                     </div>
 
@@ -363,7 +363,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
                           {shortAddress(currentInvoice.usdc_ata)}
                         </code>
                         <p className="text-xs leading-6 text-slate-400">
-                          Your wallet routes the USDC transfer here automatically.
+                          Your wallet routes the USDC transfer into this wallet-owned settlement account.
                         </p>
                       </div>
                     ) : null}

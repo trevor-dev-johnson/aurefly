@@ -54,6 +54,7 @@ pub async fn create(
             user_id,
             client_request_id,
             reference_pubkey,
+            requested_payout_address,
             subtotal_usdc,
             platform_fee_usdc,
             platform_fee_bps,
@@ -66,13 +67,14 @@ pub async fn create(
             usdc_ata,
             usdc_mint
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12, $13, $14)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending', $12, $13, $14, $15)
         ON CONFLICT (user_id, client_request_id)
         DO UPDATE SET client_request_id = EXCLUDED.client_request_id
         RETURNING
             id,
             user_id,
             reference_pubkey,
+            requested_payout_address,
             subtotal_usdc,
             platform_fee_usdc,
             platform_fee_bps,
@@ -93,6 +95,7 @@ pub async fn create(
     .bind(input.user_id)
     .bind(input.client_request_id)
     .bind(&reference_pubkey)
+    .bind(payout_address)
     .bind(subtotal)
     .bind(platform_fee)
     .bind(PLATFORM_FEE_BPS)
@@ -116,6 +119,7 @@ pub async fn get(pool: &PgPool, invoice_id: Uuid) -> AppResult<Invoice> {
             invoices.id,
             invoices.user_id,
             invoices.reference_pubkey,
+            invoices.requested_payout_address,
             invoices.subtotal_usdc,
             invoices.platform_fee_usdc,
             invoices.platform_fee_bps,
@@ -162,6 +166,7 @@ pub async fn list_for_user(pool: &PgPool, user_id: Uuid) -> AppResult<Vec<Invoic
             invoices.id,
             invoices.user_id,
             invoices.reference_pubkey,
+            invoices.requested_payout_address,
             invoices.subtotal_usdc,
             invoices.platform_fee_usdc,
             invoices.platform_fee_bps,

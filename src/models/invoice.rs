@@ -8,6 +8,7 @@ pub struct Invoice {
     pub id: Uuid,
     pub user_id: Uuid,
     pub reference_pubkey: Option<String>,
+    pub requested_payout_address: String,
     pub subtotal_usdc: Decimal,
     pub platform_fee_usdc: Decimal,
     pub platform_fee_bps: i16,
