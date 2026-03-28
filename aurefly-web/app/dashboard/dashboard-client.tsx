@@ -398,7 +398,7 @@ export function DashboardClient() {
 
   if (loading) {
     return (
-      <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-10">
+      <main className="relative flex min-h-screen items-center justify-center overflow-x-hidden px-6 py-10">
         <div className="pointer-events-none absolute inset-x-0 top-[-10rem] mx-auto h-[28rem] w-[min(92vw,56rem)] rounded-full bg-[radial-gradient(circle,rgba(90,141,255,0.16),rgba(77,223,143,0.08)_44%,transparent_74%)] blur-3xl" />
         <div className="rounded-[1.75rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] px-8 py-6 text-sm text-slate-300 shadow-[0_28px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl">
           Loading dashboard...
@@ -408,11 +408,11 @@ export function DashboardClient() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-4 py-4 sm:px-6 sm:py-6">
+    <main className="relative min-h-screen overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6">
       <div className="pointer-events-none absolute inset-x-0 top-[-10rem] mx-auto h-[28rem] w-[min(92vw,64rem)] rounded-full bg-[radial-gradient(circle,rgba(90,141,255,0.16),rgba(77,223,143,0.08)_44%,transparent_74%)] blur-3xl" />
       <div className="pointer-events-none absolute bottom-[-10rem] left-1/2 h-[24rem] w-[24rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(248,211,111,0.12),transparent_72%)] blur-3xl" />
 
-      <div className="relative mx-auto grid min-h-[calc(100vh-2rem)] max-w-7xl gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="relative mx-auto grid max-w-7xl gap-4 lg:min-h-[calc(100vh-2rem)] lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside className="rounded-[2rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
           <div className="flex items-center gap-3">
             <Image
@@ -461,7 +461,7 @@ export function DashboardClient() {
         <section className="rounded-[2rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6">
           <header
             id="overview"
-            className="flex flex-col gap-4 border-b border-white/6 pb-6 lg:flex-row lg:items-center lg:justify-between"
+            className="scroll-mt-4 flex flex-col gap-4 border-b border-white/6 pb-6 lg:scroll-mt-6 lg:flex-row lg:items-center lg:justify-between"
           >
             <div>
               <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-slate-500">
@@ -557,7 +557,7 @@ export function DashboardClient() {
 
           <section
             id="invoices"
-            className="mt-6 rounded-[1.8rem] border border-white/7 bg-white/[0.03] p-4 sm:p-5"
+            className="mt-6 scroll-mt-4 rounded-[1.8rem] border border-white/7 bg-white/[0.03] p-4 lg:scroll-mt-6 sm:p-5"
           >
             <div className="flex flex-col gap-3 border-b border-white/6 pb-5 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -711,7 +711,7 @@ export function DashboardClient() {
 
           <section
             id="wallet"
-            className="mt-6 flex flex-col gap-3 rounded-[1.8rem] border border-white/7 bg-white/[0.03] p-5 sm:flex-row sm:items-center sm:justify-between"
+            className="mt-6 scroll-mt-4 flex flex-col gap-3 rounded-[1.8rem] border border-white/7 bg-white/[0.03] p-5 lg:scroll-mt-6 sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
               <div className="text-xs uppercase tracking-[0.22em] text-slate-500">
