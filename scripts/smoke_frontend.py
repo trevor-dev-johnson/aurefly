@@ -5,21 +5,22 @@ import time
 import urllib.request
 
 
-BASE_URL = os.environ.get("BASE_URL", "http://localhost:8080")
+API_BASE = os.environ.get("API_BASE", "http://localhost:8080")
+APP_BASE = os.environ.get("APP_BASE", "http://localhost:3000")
 PAYOUT_ADDRESS = os.environ.get(
     "PAYOUT_ADDRESS",
     "AbC2BEBTyK45VHyeFodk7HBmeTzJBUoBxAvbt8nTXEUy",
 )
 
 
-def request(path, method="GET", body=None, headers=None):
+def request(base_url, path, method="GET", body=None, headers=None):
     payload = None if body is None else json.dumps(body).encode()
     request_headers = {} if headers is None else dict(headers)
     if payload is not None:
         request_headers.setdefault("Content-Type", "application/json")
 
     request = urllib.request.Request(
-        f"{BASE_URL}{path}",
+        f"{base_url}{path}",
         data=payload,
         headers=request_headers,
         method=method,
@@ -32,10 +33,11 @@ def request(path, method="GET", body=None, headers=None):
 def main():
     email = f"frontend-{int(time.time())}@example.com"
 
-    _, _, body = request("/")
+    _, _, body = request(APP_BASE, "/")
     app_shell = body.decode()
 
     _, _, body = request(
+        API_BASE,
         "/api/v1/auth/sign-up",
         method="POST",
         body={
@@ -49,6 +51,7 @@ def main():
     auth_headers = {"Authorization": f"Bearer {token}"}
 
     _, _, body = request(
+        API_BASE,
         "/api/v1/auth/sign-in",
         method="POST",
         body={
@@ -58,10 +61,11 @@ def main():
     )
     sign_in = json.loads(body)
 
-    _, _, body = request("/api/v1/auth/me", headers=auth_headers)
+    _, _, body = request(API_BASE, "/api/v1/auth/me", headers=auth_headers)
     me = json.loads(body)
 
     _, _, body = request(
+        API_BASE,
         "/api/v1/me/invoices",
         method="POST",
         body={
@@ -74,16 +78,16 @@ def main():
     )
     invoice = json.loads(body)
 
-    _, _, body = request("/api/v1/me/invoices", headers=auth_headers)
+    _, _, body = request(API_BASE, "/api/v1/me/invoices", headers=auth_headers)
     invoices = json.loads(body)
 
-    _, _, body = request(f"/api/v1/public/invoices/{invoice['id']}")
+    _, _, body = request(API_BASE, f"/api/v1/public/invoices/{invoice['id']}")
     public_invoice = json.loads(body)
 
-    _, _, body = request(f"/pay/{invoice['id']}")
+    _, _, body = request(APP_BASE, f"/pay/{invoice['id']}")
     public_page = body.decode()
 
-    qr_status, qr_headers, body = request(f"/api/v1/public/invoices/{invoice['id']}/qr.svg")
+    qr_status, qr_headers, body = request(API_BASE, f"/api/v1/public/invoices/{invoice['id']}/qr.svg")
     qr_svg = body.decode()
     payment_recipient = invoice["payment_uri"].split("?", 1)[0].replace("solana:", "")
     public_payment_recipient = public_invoice.get("payment_uri", "").split("?", 1)[0].replace("solana:", "")
@@ -126,7 +130,7 @@ def main():
         "public_payment_uri_has_exact_reference": f"&reference={invoice['reference_pubkey']}" in public_invoice.get("payment_uri", ""),
         "public_payment_uri_matches_private": public_invoice.get("payment_uri") == invoice["payment_uri"],
         "public_payment_uri_uses_wallet_pubkey": public_payment_recipient == invoice["wallet_pubkey"],
-        "public_page_has_heading": "Scan to pay or use the Aurefly payment link." in public_page and "Payments usually confirm in ~10-15 seconds." in public_page,
+        "public_page_has_heading": "Payments usually confirm in ~10-15 seconds." in public_page,
         "public_page_has_wallet_hint": "Use the Aurefly payment link or QR so your payment is credited automatically." in public_page,
         "qr_status": qr_status,
         "qr_content_type": qr_headers.get("Content-Type"),

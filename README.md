@@ -1,154 +1,128 @@
 # Aurefly
 
-Aurefly is a USDC invoicing app on Solana. This repo ships a Rust `axum` backend, Postgres, SQL migrations, and a server-rendered static frontend for sign-in, dashboard, invoice creation, and public pay pages.
+Aurefly is a non-custodial USDC invoicing app on Solana.
 
-Invoices are created by authenticated users under `/api/v1/me/invoices`. Each invoice stores a real USDC settlement target, returns a Solana Pay URI with a per-invoice reference, and is marked paid only by the on-chain detector.
+This repo now runs as two separate apps:
+
+- [aurefly-web](C:/Users/Trevor/dev/solana-pay/aurefly-web): Next.js frontend
+- [src](C:/Users/Trevor/dev/solana-pay/src): Rust `axum` API + payment detector
+
+The Rust service is API-only. It no longer serves the website.
 
 ## Stack
 
-- Rust + Axum for the HTTP API and static frontend hosting
-- SQLx for Postgres access and migrations
-- Postgres 16 via Docker Compose
+- Next.js App Router frontend
+- Rust + Axum backend API
+- SQLx + Postgres
+- Solana mainnet + Helius RPC
 
-## Project Structure
+## Local Development
 
-```text
-.
-|-- docker-compose.yml
-|-- migrations/
-|-- src/
-|   |-- db.rs
-|   |-- routes/
-|   |-- services/
-|   `-- models/
-```
-
-## Quick Start
-
-1. Copy `.env.example` to `.env` if you want to run the API outside Docker.
-2. Start the stack:
+1. Start Postgres + Rust API:
 
 ```bash
 docker compose up --build
 ```
 
-3. Check health:
+2. Confirm backend health:
 
 ```bash
 curl http://localhost:8080/api/v1/health
 ```
 
-4. Open the app at `http://localhost:8080`, create an account, and create invoices from the dashboard.
+3. Start the Next frontend:
 
-## Hosted Deployment
+```bash
+cd aurefly-web
+npm install
+npm run dev
+```
 
-For hosted environments, do not rely on an ephemeral container filesystem for key material.
+4. Open the frontend:
 
-- `TREASURY_WALLET_JSON`: optional full Solana keypair JSON array for the treasury wallet. If set, it overrides `TREASURY_WALLET_PATH`.
-- `SOLANA_FEE_PAYER_JSON`: optional full Solana keypair JSON array for the ATA fee payer. If set, it overrides `SOLANA_FEE_PAYER_PATH`.
+```text
+http://localhost:3000
+```
 
-That lets you keep both wallets in provider secrets instead of mounting local files.
+## Frontend Env
 
-## Railway
+Create [aurefly-web/.env.local](C:/Users/Trevor/dev/solana-pay/aurefly-web/.env.local):
 
-This repo now includes [railway.toml](./railway.toml) so Railway can build from the root `Dockerfile`, use `/api/v1/health` as the deployment health check, and restart on failure.
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8080
+```
 
-Minimum production variables:
+There is also an example file at [aurefly-web/.env.example](C:/Users/Trevor/dev/solana-pay/aurefly-web/.env.example).
+
+## Deployment Shape
+
+Recommended production split:
+
+- Frontend: Vercel
+- Backend API: Railway
+
+Example domains:
+
+- `https://aurefly.com` -> Vercel frontend
+- `https://api.aurefly.com` or Railway domain -> Rust API
+
+The frontend must point `NEXT_PUBLIC_API_URL` at the backend domain, not the frontend domain.
+
+## Railway Backend
+
+Railway builds the Rust API from the root [Dockerfile](C:/Users/Trevor/dev/solana-pay/Dockerfile) and healthchecks:
+
+```text
+/api/v1/health
+```
+
+Minimum backend env:
 
 ```bash
 DATABASE_URL=<Railway Postgres connection string>
 PORT=8080
 ALLOWED_ORIGINS=https://aurefly.com,https://www.aurefly.com
 HELIUS_API_KEY=<your-helius-key>
-TREASURY_WALLET_JSON=<contents of data/treasury-wallet.json>
-SOLANA_FEE_PAYER_JSON=<contents of your funded Solana keypair json>
+TREASURY_WALLET_JSON=<optional>
+SOLANA_FEE_PAYER_JSON=<optional>
 RUST_LOG=info
 ```
 
-Recommended Railway flow:
-
-1. Create a new Railway project.
-2. Add a PostgreSQL service.
-3. Deploy this repo as a service from the root `Dockerfile`.
-4. Set the environment variables above on the app service.
-5. Generate a public domain for the app service.
-6. Verify `/api/v1/health` and then create a live invoice.
-
-Security defaults in this repo:
-
-- CORS is restricted to `ALLOWED_ORIGINS`.
-- auth endpoints have a basic in-memory per-client rate limit.
-- internal server errors are logged server-side but returned to clients as a generic `internal server error`.
-
-## Dedicated RPC
-
-The app can use a dedicated provider like Helius instead of the public Solana mainnet RPC.
-
-- Fastest path: set `HELIUS_API_KEY` in `.env` and leave `SOLANA_RPC_URL` blank.
-- If you already have a full provider URL, set `SOLANA_RPC_URL` directly instead.
-- Docker Compose now passes both env vars through to the API, and the app resolves them in this order:
-  1. `SOLANA_RPC_URL`
-  2. derived Helius mainnet URL from `HELIUS_API_KEY`
-  3. public fallback `https://api.mainnet-beta.solana.com`
-
-Example:
-
-```bash
-HELIUS_API_KEY=your-helius-api-key
-```
-
-Or:
-
-```bash
-SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=your-helius-api-key
-```
-
-## Settlement Notes
-
-- Mainnet USDC mint is hardcoded to `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`.
-- Merchants can enter a wallet address or USDC ATA. Aurefly stores the derived USDC ATA as the real settlement destination.
-- Solana Pay links and QR codes use the merchant wallet pubkey as the transfer recipient, and the wallet routes the token transfer into the ATA during payment.
-- The detector still matches and credits against the stored USDC ATA plus the invoice reference.
-
 ## API Overview
 
-The public API surface is intentionally small:
+Public endpoints:
 
+- `GET /api/v1/health`
 - `POST /api/v1/auth/sign-up`
 - `POST /api/v1/auth/sign-in`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
-- `GET /api/v1/health`
 - `GET /api/v1/public/invoices/{invoice_id}`
 - `GET /api/v1/public/invoices/{invoice_id}/qr.svg`
 
-Authenticated invoice management lives under `/api/v1/me/invoices`.
+Authenticated invoice management:
 
-### Sign up
+- `GET /api/v1/me/invoices`
+- `POST /api/v1/me/invoices`
+- `POST /api/v1/me/invoices/{invoice_id}/cancel`
 
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/sign-up \
-  -H "Content-Type: application/json" \
-  -d '{"email":"merchant@example.com","password":"correct horse battery staple","name":"Merchant"}'
-```
+## Settlement Rules
 
-### Create an invoice
+- Mainnet USDC mint is fixed to `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
+- Merchants can paste a wallet address or USDC token account
+- Aurefly derives and stores the real USDC ATA internally
+- Solana Pay links use the merchant wallet pubkey as recipient
+- The detector credits invoices only by:
+  - destination USDC ATA
+  - USDC mint
+  - exact reference
+  - pending invoice state
 
-Use the returned bearer token from sign-up or sign-in.
+Manual transfers without the Aurefly link/QR are stored as unmatched and are not auto-credited.
 
-```bash
-curl -X POST http://localhost:8080/api/v1/me/invoices \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <TOKEN>" \
-  -d '{"amount_usdc":"49.99","description":"Design work","client_email":"client@example.com","payout_address":"<REAL_USDC_DESTINATION>"}'
-```
+## Security Notes
 
-Notes:
-
-- `amount_usdc` is accepted as a string to preserve decimal precision.
-- `payout_address` is required and must be the merchant's existing mainnet USDC associated token account (ATA).
-- wallet pubkeys and non-USDC token accounts are rejected. If the merchant does not have a USDC ATA yet, they need to create one in their Solana wallet first.
-- invoice responses include `wallet_pubkey`, `usdc_ata`, `usdc_mint`, and `payment_uri`.
-- confirmed payments are recorded internally by the detector after on-chain verification. There is no public payment-ingestion endpoint.
-- invoices are settled by Solana Pay reference only. Payments sent without the Aurefly payment link or QR are stored as unmatched and are not auto-credited.
-- unmatched payments now carry a review lifecycle: `pending`, `reviewed`, or `resolved`, plus an optional `linked_invoice_id` for manual reconciliation later.
+- The backend is API-only; no website is served from Railway anymore
+- CORS is restricted by `ALLOWED_ORIGINS`
+- Confirmed payments are detector-only; there is no public payment-ingestion route
+- Invoice cancellation is allowed only while an invoice is still `pending`

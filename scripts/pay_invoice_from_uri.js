@@ -3,7 +3,7 @@ const path = require("path");
 const { Keypair, PublicKey, Connection, Transaction, TransactionInstruction } = require("@solana/web3.js");
 
 const API_BASE = process.argv[2] || "http://localhost:8080/api/v1";
-const APP_BASE = process.argv[3] || "http://localhost:8080";
+const APP_BASE = process.argv[3] || "http://localhost:3000";
 const SUBTOTAL_USDC = process.argv[4] || "0.020";
 const PAYOUT_ADDRESS = process.argv[5] || process.env.PAYOUT_ADDRESS || "AbC2BEBTyK45VHyeFodk7HBmeTzJBUoBxAvbt8nTXEUy";
 const KEYPAIR_PATH =
@@ -53,7 +53,7 @@ async function main() {
     throw new Error(`pay page returned ${payPageResponse.status}`);
   }
   const payment = await payInvoiceFromUri(connection, payer, invoice.payment_uri);
-  const observedInvoice = await requestJson("GET", `${API_BASE}/public/invoices/${invoice.id}?observe_payment=true`);
+  const observedInvoice = await requestJson("GET", `${API_BASE}/public/invoices/${invoice.id}`);
   const paidInvoice = await waitForInvoicePaid(invoice.id);
   const dashboardInvoices = await requestJsonWithToken("GET", `${API_BASE}/me/invoices`, undefined, signIn.token);
   const dashboardInvoice = dashboardInvoices.find((item) => item.id === invoice.id) || null;

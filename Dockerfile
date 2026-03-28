@@ -8,7 +8,6 @@ RUN apt-get update \
 
 COPY Cargo.toml ./
 COPY migrations ./migrations
-COPY public ./public
 COPY src ./src
 
 RUN cargo build --release
@@ -23,7 +22,6 @@ RUN apt-get update \
 
 COPY --from=builder /app/target/release/aurefly-backend /usr/local/bin/aurefly-backend
 COPY --from=builder /app/target/release/send_sol_test /usr/local/bin/send_sol_test
-COPY public ./public
 
 ENV RUST_LOG=info
 CMD ["aurefly-backend"]
