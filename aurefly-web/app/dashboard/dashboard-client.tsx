@@ -21,6 +21,7 @@ import {
 } from "@/lib/aurefly-api";
 
 const POLL_INTERVAL_MS = 8_000;
+const SECTION_IDS = ["overview", "invoices", "wallet"] as const;
 
 type CreateInvoiceState = {
   amount_usdc: string;
@@ -41,8 +42,6 @@ type Notice =
       type: "success";
       text: string;
       invoiceId?: string;
-      walletPubkey?: string | null;
-      usdcAta?: string;
     }
   | {
       type: "error";
@@ -50,11 +49,67 @@ type Notice =
     }
   | null;
 
+type ActivityItem = {
+  id: string;
+  title: string;
+  detail: string;
+  time: string;
+  tone: "success" | "pending" | "neutral";
+};
+
 function formatShortDate(value: string) {
   return new Date(value).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
+}
+
+function formatRelativeTime(value: string | null | undefined) {
+  if (!value) {
+    return "just now";
+  }
+
+  const deltaSeconds = Math.max(
+    0,
+    Math.round((Date.now() - new Date(value).getTime()) / 1000),
+  );
+
+  if (deltaSeconds < 60) {
+    return `${deltaSeconds}s ago`;
+  }
+
+  const deltaMinutes = Math.round(deltaSeconds / 60);
+  if (deltaMinutes < 60) {
+    return `${deltaMinutes}m ago`;
+  }
+
+  const deltaHours = Math.round(deltaMinutes / 60);
+  if (deltaHours < 24) {
+    return `${deltaHours}h ago`;
+  }
+
+  return `${Math.round(deltaHours / 24)}d ago`;
+}
+
+function formatDuration(milliseconds: number | null) {
+  if (!milliseconds || !Number.isFinite(milliseconds) || milliseconds <= 0) {
+    return "Settles fast";
+  }
+
+  const totalSeconds = Math.round(milliseconds / 1000);
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s`;
+  }
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes < 60) {
+    return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainderMinutes = minutes % 60;
+  return remainderMinutes === 0 ? `${hours}h` : `${hours}h ${remainderMinutes}m`;
 }
 
 function roundToSix(value: number) {
@@ -76,6 +131,28 @@ function displayAddress(value: string | null | undefined) {
   }
 
   return value;
+}
+
+function navItemClasses(active: boolean) {
+  return `group relative overflow-hidden rounded-2xl px-4 py-3 transition ${
+    active
+      ? "bg-white/[0.06] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
+      : "text-slate-300 hover:bg-white/[0.04] hover:text-white"
+  }`;
+}
+
+function statusClasses(status: string) {
+  if (status === "paid") {
+    return "border border-emerald-400/18 bg-emerald-400/10 text-emerald-200";
+  }
+  if (status === "cancelled") {
+    return "border border-rose-400/18 bg-rose-400/10 text-rose-200";
+  }
+  if (status === "expired") {
+    return "border border-amber-400/18 bg-amber-400/10 text-amber-200";
+  }
+
+  return "border border-white/10 bg-white/[0.05] text-slate-300";
 }
 
 async function copyInvoiceUrl(invoicePath: string) {
@@ -104,6 +181,8 @@ export function DashboardClient() {
   const [submitting, setSubmitting] = useState(false);
   const [cancellingInvoiceId, setCancellingInvoiceId] = useState("");
   const [notice, setNotice] = useState<Notice>(null);
+  const [activeSection, setActiveSection] =
+    useState<(typeof SECTION_IDS)[number]>("overview");
 
   useEffect(() => {
     const storedToken = getStoredToken();
@@ -211,6 +290,35 @@ export function DashboardClient() {
     };
   }, [modalOpen]);
 
+  useEffect(() => {
+    const sections = SECTION_IDS.map((id) => document.getElementById(id)).filter(
+      (section): section is HTMLElement => Boolean(section),
+    );
+
+    if (sections.length === 0) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
+
+        if (visible?.target.id && SECTION_IDS.includes(visible.target.id as (typeof SECTION_IDS)[number])) {
+          setActiveSection(visible.target.id as (typeof SECTION_IDS)[number]);
+        }
+      },
+      {
+        rootMargin: "-18% 0px -55% 0px",
+        threshold: [0.15, 0.35, 0.6],
+      },
+    );
+
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, []);
+
   const metrics = useMemo(() => {
     const totalReceived = invoices.reduce(
       (sum, invoice) => sum + Number(invoice.paid_amount_usdc || 0),
@@ -228,13 +336,88 @@ export function DashboardClient() {
     }, 0);
     const paidCount = invoices.filter((invoice) => invoice.status === "paid").length;
     const pendingCount = invoices.filter((invoice) => invoice.status === "pending").length;
+    const expiredCount = invoices.filter((invoice) => invoice.status === "expired").length;
+    const cancelledCount = invoices.filter((invoice) => invoice.status === "cancelled").length;
+    const terminalCount = paidCount + expiredCount + cancelledCount;
+    const successRate =
+      terminalCount > 0 ? (paidCount / terminalCount) * 100 : paidCount > 0 ? 100 : 0;
+    const paymentDurations = invoices
+      .filter((invoice) => invoice.status === "paid" && invoice.paid_at)
+      .map(
+        (invoice) =>
+          new Date(invoice.paid_at as string).getTime() - new Date(invoice.created_at).getTime(),
+      )
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const avgPaymentMs =
+      paymentDurations.length > 0
+        ? paymentDurations.reduce((sum, value) => sum + value, 0) / paymentDurations.length
+        : null;
 
     return {
       totalReceived,
       pendingTotal,
       paidCount,
       pendingCount,
+      expiredCount,
+      cancelledCount,
+      successRate,
+      avgPaymentMs,
     };
+  }, [invoices]);
+
+  const recentActivity = useMemo<ActivityItem[]>(() => {
+    const activity = [...invoices]
+      .map((invoice) => {
+        if (invoice.status === "paid" && invoice.paid_at) {
+          return {
+            id: `${invoice.id}-paid`,
+            title: `${formatMoney(invoice.paid_amount_usdc || invoice.amount_usdc)} received`,
+            detail:
+              invoice.description ||
+              invoice.client_email ||
+              `Invoice ${invoice.id.slice(0, 8).toUpperCase()}`,
+            time: formatRelativeTime(invoice.paid_at),
+            tone: "success" as const,
+            sortValue: new Date(invoice.paid_at).getTime(),
+          };
+        }
+
+        if (invoice.status === "cancelled" || invoice.status === "expired") {
+          return {
+            id: `${invoice.id}-${invoice.status}`,
+            title: invoice.status === "cancelled" ? "Invoice cancelled" : "Invoice expired",
+            detail:
+              invoice.description ||
+              invoice.client_email ||
+              `Invoice ${invoice.id.slice(0, 8).toUpperCase()}`,
+            time: formatRelativeTime(invoice.created_at),
+            tone: "neutral" as const,
+            sortValue: new Date(invoice.created_at).getTime(),
+          };
+        }
+
+        return {
+          id: `${invoice.id}-pending`,
+          title: "Invoice ready to share",
+          detail:
+            invoice.description ||
+            invoice.client_email ||
+            `Invoice ${invoice.id.slice(0, 8).toUpperCase()}`,
+          time: formatRelativeTime(invoice.created_at),
+          tone: "pending" as const,
+          sortValue: new Date(invoice.created_at).getTime(),
+        };
+      })
+      .sort((left, right) => right.sortValue - left.sortValue)
+      .slice(0, 5);
+
+    return activity.map((item) => ({
+      id: item.id,
+      title: item.title,
+      detail: item.detail,
+      time: item.time,
+      tone: item.tone,
+    }));
   }, [invoices]);
 
   const summaryAmount = useMemo(() => parseAmount(createState.amount_usdc), [createState.amount_usdc]);
@@ -322,8 +505,6 @@ export function DashboardClient() {
         type: "success",
         text: copied ? "Invoice link copied." : "Invoice created.",
         invoiceId: invoice.id,
-        walletPubkey: invoice.wallet_pubkey,
-        usdcAta: invoice.usdc_ata,
       });
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -431,15 +612,36 @@ export function DashboardClient() {
             </div>
           </div>
 
-          <nav className="mt-10 grid gap-2 text-sm text-slate-300">
-            <a href="#overview" className="rounded-2xl bg-white/[0.04] px-4 py-3 text-white">
-              Overview
+          <nav className="mt-10 grid gap-2 text-sm">
+            <a href="#overview" className={navItemClasses(activeSection === "overview")}>
+              <span
+                className={`absolute inset-y-2 left-2 w-1 rounded-full bg-gradient-to-b from-[#5a8dff] to-[#4ddf8f] transition-all ${
+                  activeSection === "overview"
+                    ? "opacity-100"
+                    : "opacity-0 group-hover:opacity-60"
+                }`}
+              />
+              <span className="pl-3">Overview</span>
             </a>
-            <a href="#invoices" className="rounded-2xl px-4 py-3 transition hover:bg-white/[0.04]">
-              Invoices
+            <a href="#invoices" className={navItemClasses(activeSection === "invoices")}>
+              <span
+                className={`absolute inset-y-2 left-2 w-1 rounded-full bg-gradient-to-b from-[#5a8dff] to-[#4ddf8f] transition-all ${
+                  activeSection === "invoices"
+                    ? "opacity-100"
+                    : "opacity-0 group-hover:opacity-60"
+                }`}
+              />
+              <span className="pl-3">Invoices</span>
             </a>
-            <a href="#wallet" className="rounded-2xl px-4 py-3 transition hover:bg-white/[0.04]">
-              Wallet
+            <a href="#wallet" className={navItemClasses(activeSection === "wallet")}>
+              <span
+                className={`absolute inset-y-2 left-2 w-1 rounded-full bg-gradient-to-b from-[#5a8dff] to-[#4ddf8f] transition-all ${
+                  activeSection === "wallet"
+                    ? "opacity-100"
+                    : "opacity-0 group-hover:opacity-60"
+                }`}
+              />
+              <span className="pl-3">Wallet</span>
             </a>
           </nav>
 
@@ -463,60 +665,81 @@ export function DashboardClient() {
             id="overview"
             className="scroll-mt-4 flex flex-col gap-4 border-b border-white/6 pb-6 lg:scroll-mt-6 lg:flex-row lg:items-center lg:justify-between"
           >
-            <div>
+            <div className="max-w-2xl">
               <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-slate-500">
                 Overview
               </p>
               <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-4xl">
-                Manage invoices without leaving your wallet flow.
+                Turn a wallet into your payments stack.
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-                Create USDC invoices, share a clean payment page, and let Aurefly confirm
-                settlement directly to your Solana wallet.
+                Create an invoice, send the link, and let Aurefly confirm USDC settlement directly to your wallet.
               </p>
+              <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-400/18 bg-emerald-400/8 px-4 py-2 text-sm text-emerald-100/90">
+                <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(77,223,143,0.75)]" />
+                Non-custodial. Funds go directly to your wallet.
+              </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={refreshInvoices}
-                className="inline-flex h-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.05]"
-              >
-                {refreshing ? "Refreshing..." : "Refresh"}
-              </button>
-              <button
-                type="button"
-                onClick={openModal}
-                className="inline-flex h-11 items-center justify-center rounded-full bg-[#4f86ff] px-5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(79,134,255,0.24)] transition hover:-translate-y-px hover:bg-[#6595ff]"
-              >
-                New Invoice
-              </button>
+            <div className="w-full max-w-md rounded-[1.8rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-4 sm:p-5">
+              <div className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                Primary action
+              </div>
+              <div className="mt-3 text-lg font-semibold tracking-[-0.03em] text-white">
+                {invoices.length === 0 ? "Create your first invoice" : "Create your next invoice"}
+              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                Aurefly exists to get one thing done fast: get you paid.
+              </p>
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={openModal}
+                  className="inline-flex h-12 flex-1 items-center justify-center rounded-full bg-[#4f86ff] px-5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(79,134,255,0.24)] transition hover:-translate-y-px hover:bg-[#6595ff]"
+                >
+                  Create invoice →
+                </button>
+                <button
+                  type="button"
+                  onClick={refreshInvoices}
+                  className="inline-flex h-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.05]"
+                >
+                  {refreshing ? "Refreshing..." : "Refresh"}
+                </button>
+              </div>
             </div>
           </header>
 
-          <section className="mt-6 grid gap-4 xl:grid-cols-3">
+          <section className="mt-6 grid gap-4 xl:grid-cols-4">
             <article className="rounded-[1.7rem] border border-emerald-400/14 bg-emerald-400/8 p-5">
-              <div className="text-sm text-emerald-100/80">Total earned</div>
+              <div className="text-sm text-emerald-100/80">Total volume</div>
               <div className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-white">
                 {formatMoney(metrics.totalReceived)}
               </div>
-              <div className="mt-2 text-sm text-emerald-100/70">USDC settled</div>
+              <div className="mt-2 text-sm text-emerald-100/70">USDC processed</div>
             </article>
             <article className="rounded-[1.7rem] border border-sky-400/14 bg-sky-400/8 p-5">
-              <div className="text-sm text-sky-100/80">Pending</div>
+              <div className="text-sm text-sky-100/80">Success rate</div>
               <div className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-white">
-                {formatMoney(metrics.pendingTotal)}
+                {metrics.successRate.toFixed(0)}%
               </div>
               <div className="mt-2 text-sm text-sky-100/70">
-                {metrics.pendingCount} open invoices
+                {metrics.paidCount} paid · {metrics.expiredCount + metrics.cancelledCount} closed
               </div>
             </article>
             <article className="rounded-[1.7rem] border border-white/8 bg-white/[0.03] p-5">
-              <div className="text-sm text-slate-300">Paid</div>
+              <div className="text-sm text-slate-300">Avg payment time</div>
               <div className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-white">
-                {metrics.paidCount}
+                {formatDuration(metrics.avgPaymentMs)}
               </div>
-              <div className="mt-2 text-sm text-slate-400">Invoices confirmed</div>
+              <div className="mt-2 text-sm text-slate-400">From issued to confirmed</div>
+            </article>
+            <article className="rounded-[1.7rem] border border-white/8 bg-white/[0.03] p-5">
+              <div className="text-sm text-slate-300">Open now</div>
+              <div className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-white">
+                {formatMoney(metrics.pendingTotal)}
+              </div>
+              <div className="mt-2 text-sm text-slate-400">{metrics.pendingCount} live invoices</div>
             </article>
           </section>
 
@@ -538,176 +761,217 @@ export function DashboardClient() {
                   >
                     Open pay page
                   </Link>
-                  <div className="mt-2">
-                    Merchant wallet:{" "}
-                    <code className="rounded-lg bg-black/20 px-2 py-1 font-mono text-xs text-white">
-                      {displayAddress(notice.walletPubkey)}
-                    </code>
-                  </div>
-                  <div className="mt-2">
-                    USDC settlement account:{" "}
-                    <code className="rounded-lg bg-black/20 px-2 py-1 font-mono text-xs text-white">
-                      {displayAddress(notice.usdcAta)}
-                    </code>
-                  </div>
                 </div>
               ) : null}
             </section>
           ) : null}
 
-          <section
-            id="invoices"
-            className="mt-6 scroll-mt-4 rounded-[1.8rem] border border-white/7 bg-white/[0.03] p-4 lg:scroll-mt-6 sm:p-5"
-          >
-            <div className="flex flex-col gap-3 border-b border-white/6 pb-5 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Invoices</h2>
-                <p className="mt-2 text-sm leading-7 text-slate-400">
-                  Share the Aurefly payment link or QR. Manual transfers may not be credited automatically.
-                </p>
+          <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <section
+              id="invoices"
+              className="scroll-mt-4 rounded-[1.8rem] border border-white/7 bg-white/[0.03] p-4 lg:scroll-mt-6 sm:p-5"
+            >
+              <div className="flex flex-col gap-3 border-b border-white/6 pb-5 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Invoices</h2>
+                  <p className="mt-2 text-sm leading-7 text-slate-400">
+                    Share the Aurefly payment link or QR. Manual transfers may not be credited automatically.
+                  </p>
+                </div>
+                <div className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
+                  {invoices.length} total
+                </div>
               </div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
-                {invoices.length} total
-              </div>
-            </div>
 
-            {invoices.length === 0 ? (
-              <div className="py-14 text-center">
-                <div className="text-lg font-semibold tracking-[-0.03em] text-white">
-                  No invoices yet
+              {invoices.length === 0 ? (
+                <div className="py-14 text-center">
+                  <div className="text-lg font-semibold tracking-[-0.03em] text-white">
+                    No invoices yet
+                  </div>
+                  <p className="mt-3 text-sm leading-7 text-slate-400">
+                    Create your first invoice to get paid in seconds.
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-5 grid gap-3">
+                  {invoices.map((invoice) => {
+                    const paidAmount = Number(invoice.paid_amount_usdc || 0);
+                    const feeAmount = Number(invoice.platform_fee_usdc || 0);
+                    const netAmount = Number(invoice.net_amount_usdc || 0);
+                    const paymentLabel =
+                      invoice.status === "cancelled"
+                        ? "Cancelled"
+                        : invoice.status === "expired"
+                          ? "Expired"
+                          : paidAmount > 0
+                            ? feeAmount > 0
+                              ? `${formatMoney(paidAmount)} paid · ${formatMoney(netAmount)} after fee`
+                              : `${formatMoney(paidAmount)} paid`
+                            : "Awaiting payment";
+
+                    return (
+                      <article
+                        key={invoice.id}
+                        className="grid gap-4 rounded-[1.4rem] border border-white/7 bg-[#0c1520]/80 p-4 transition hover:border-white/12 hover:bg-[#101926]/90 lg:grid-cols-[minmax(0,1fr)_140px_170px]"
+                      >
+                        <div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <div className="text-sm font-semibold text-white">
+                              {invoice.description ||
+                                invoice.client_email ||
+                                `Invoice ${invoice.id.slice(0, 8).toUpperCase()}`}
+                            </div>
+                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClasses(invoice.status)}`}>
+                              {invoice.status === "paid"
+                                ? "Paid"
+                                : invoice.status === "cancelled"
+                                  ? "Cancelled"
+                                  : invoice.status === "expired"
+                                    ? "Expired"
+                                    : "Pending"}
+                            </span>
+                          </div>
+                          {invoice.client_email && invoice.description ? (
+                            <div className="mt-2 text-sm text-slate-400">{invoice.client_email}</div>
+                          ) : null}
+                          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+                            <span>{formatShortDate(invoice.created_at)}</span>
+                            <span>{paymentLabel}</span>
+                            <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-600">
+                              {invoice.id.slice(0, 8).toUpperCase()}
+                            </span>
+                          </div>
+                          <details className="mt-4 rounded-[1.1rem] border border-white/6 bg-white/[0.025] p-3 open:bg-white/[0.04]">
+                            <summary className="cursor-pointer list-none text-sm font-medium text-slate-300">
+                              Advanced details
+                            </summary>
+                            <div className="mt-3 grid gap-3 text-xs">
+                              <div>
+                                <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                                  Payout input
+                                </div>
+                                <code className="mt-1 block break-all font-mono text-slate-200">
+                                  {displayAddress(invoice.requested_payout_address)}
+                                </code>
+                              </div>
+                              <div>
+                                <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                                  Merchant wallet
+                                </div>
+                                <code className="mt-1 block break-all font-mono text-slate-200">
+                                  {displayAddress(invoice.wallet_pubkey)}
+                                </code>
+                              </div>
+                              <div>
+                                <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                                  USDC settlement account
+                                </div>
+                                <code className="mt-1 block break-all font-mono text-slate-200">
+                                  {displayAddress(invoice.usdc_ata)}
+                                </code>
+                              </div>
+                            </div>
+                          </details>
+                        </div>
+
+                        <div className="lg:text-right">
+                          <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                            Amount
+                          </div>
+                          <div className="mt-2 text-lg font-semibold text-white">
+                            {formatMoney(invoice.amount_usdc)}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">USDC</div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-4 lg:flex-col lg:items-end lg:justify-center">
+                          <div className="flex items-center gap-4 lg:flex-col lg:items-end">
+                            {invoice.status === "pending" ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleCancelInvoice(invoice.id)}
+                                disabled={cancellingInvoiceId === invoice.id}
+                                className="text-sm font-medium text-rose-200 transition hover:text-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {cancellingInvoiceId === invoice.id ? "Cancelling..." : "Cancel"}
+                              </button>
+                            ) : null}
+                            <Link
+                              href={`/pay/${invoice.id}`}
+                              target="_blank"
+                              className="text-sm font-medium text-sky-300 transition hover:text-sky-200"
+                            >
+                              View
+                            </Link>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <aside className="space-y-4">
+              <section className="rounded-[1.8rem] border border-white/7 bg-white/[0.03] p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-slate-500">Live</div>
+                    <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">
+                      Recent activity
+                    </h2>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/14 bg-emerald-400/8 px-3 py-1 text-xs text-emerald-100/90">
+                    <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(77,223,143,0.8)]" />
+                    Live
+                  </div>
+                </div>
+                <div className="mt-5 grid gap-3">
+                  {recentActivity.length === 0 ? (
+                    <div className="rounded-[1.2rem] border border-white/7 bg-[#0c1520]/70 p-4 text-sm text-slate-400">
+                      Activity appears here as invoices are created, paid, cancelled, or expired.
+                    </div>
+                  ) : (
+                    recentActivity.map((item) => (
+                      <article
+                        key={item.id}
+                        className="rounded-[1.2rem] border border-white/7 bg-[#0c1520]/70 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <span
+                              className={`mt-1 h-2.5 w-2.5 rounded-full ${
+                                item.tone === "success"
+                                  ? "bg-emerald-300 shadow-[0_0_12px_rgba(77,223,143,0.75)]"
+                                  : item.tone === "pending"
+                                    ? "bg-sky-300 shadow-[0_0_12px_rgba(90,141,255,0.65)]"
+                                    : "bg-slate-500"
+                              }`}
+                            />
+                            <div>
+                              <div className="text-sm font-medium text-white">{item.title}</div>
+                              <div className="mt-1 text-sm leading-6 text-slate-400">{item.detail}</div>
+                            </div>
+                          </div>
+                          <div className="whitespace-nowrap text-xs text-slate-500">{item.time}</div>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-[1.8rem] border border-white/7 bg-white/[0.03] p-5">
+                <div className="text-xs uppercase tracking-[0.22em] text-slate-500">Trust</div>
+                <div className="mt-3 text-lg font-semibold tracking-[-0.03em] text-white">
+                  Payments land in your wallet
                 </div>
                 <p className="mt-3 text-sm leading-7 text-slate-400">
-                  Create your first invoice to get paid in seconds.
+                  Aurefly never holds funds. Customers pay your wallet, and settlement is confirmed on-chain.
                 </p>
-              </div>
-            ) : (
-              <div className="mt-5 grid gap-3">
-                {invoices.map((invoice) => {
-                  const paidAmount = Number(invoice.paid_amount_usdc || 0);
-                  const feeAmount = Number(invoice.platform_fee_usdc || 0);
-                  const netAmount = Number(invoice.net_amount_usdc || 0);
-                  const paymentLabel =
-                    invoice.status === "cancelled"
-                      ? "Cancelled"
-                      : invoice.status === "expired"
-                        ? "Expired"
-                      : paidAmount > 0
-                      ? feeAmount > 0
-                        ? `${formatMoney(paidAmount)} paid · ${formatMoney(netAmount)} after fee`
-                        : `${formatMoney(paidAmount)} paid`
-                      : "No payment yet";
-
-                  return (
-                    <article
-                      key={invoice.id}
-                      className="grid gap-4 rounded-[1.4rem] border border-white/7 bg-[#0c1520]/80 p-4 lg:grid-cols-[110px_minmax(0,1fr)_160px_180px]"
-                    >
-                      <div>
-                        <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-slate-500">
-                          Invoice
-                        </div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {invoice.id.slice(0, 8).toUpperCase()}
-                        </div>
-                        <div className="mt-2 text-xs text-slate-500">
-                          {formatShortDate(invoice.created_at)}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-sm font-medium text-white">
-                          {invoice.client_email || "Direct invoice"}
-                        </div>
-                        {invoice.description ? (
-                          <div className="mt-2 text-sm leading-7 text-slate-300">
-                            {invoice.description}
-                          </div>
-                        ) : null}
-                        <div className="mt-2 text-sm text-slate-500">{paymentLabel}</div>
-                        <div className="mt-4 grid gap-2 rounded-[1.1rem] border border-white/6 bg-white/[0.025] p-3">
-                          <div>
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                              Payout input
-                            </div>
-                            <code className="mt-1 block break-all font-mono text-xs text-slate-200">
-                              {displayAddress(invoice.requested_payout_address)}
-                            </code>
-                          </div>
-                          <div>
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                              Merchant wallet
-                            </div>
-                            <code className="mt-1 block break-all font-mono text-xs text-slate-200">
-                              {displayAddress(invoice.wallet_pubkey)}
-                            </code>
-                          </div>
-                          <div>
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                              USDC settlement account
-                            </div>
-                            <code className="mt-1 block break-all font-mono text-xs text-slate-200">
-                              {displayAddress(invoice.usdc_ata)}
-                            </code>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="lg:text-right">
-                        <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                          Amount
-                        </div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {formatMoney(invoice.amount_usdc)}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">USDC</div>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-4 lg:flex-col lg:items-end lg:justify-center">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                            invoice.status === "paid"
-                              ? "border border-emerald-400/18 bg-emerald-400/10 text-emerald-200"
-                              : invoice.status === "cancelled"
-                                ? "border border-rose-400/18 bg-rose-400/10 text-rose-200"
-                              : invoice.status === "expired"
-                                ? "border border-amber-400/18 bg-amber-400/10 text-amber-200"
-                              : "border border-white/10 bg-white/[0.05] text-slate-300"
-                          }`}
-                        >
-                          {invoice.status === "paid"
-                            ? "Paid"
-                            : invoice.status === "cancelled"
-                              ? "Cancelled"
-                              : invoice.status === "expired"
-                                ? "Expired"
-                              : "Pending"}
-                        </span>
-                        <div className="flex items-center gap-4 lg:flex-col lg:items-end">
-                          {invoice.status === "pending" ? (
-                            <button
-                              type="button"
-                              onClick={() => void handleCancelInvoice(invoice.id)}
-                              disabled={cancellingInvoiceId === invoice.id}
-                              className="text-sm font-medium text-rose-200 transition hover:text-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {cancellingInvoiceId === invoice.id ? "Cancelling..." : "Cancel"}
-                            </button>
-                          ) : null}
-                          <Link
-                            href={`/pay/${invoice.id}`}
-                            target="_blank"
-                            className="text-sm font-medium text-sky-300 transition hover:text-sky-200"
-                          >
-                            View
-                          </Link>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </section>
+              </section>
+            </aside>
+          </div>
 
           <section
             id="wallet"

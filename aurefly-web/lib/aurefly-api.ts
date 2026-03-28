@@ -19,6 +19,7 @@ export type PublicInvoice = {
 
 export type MerchantInvoice = PublicInvoice & {
   created_at: string;
+  paid_at?: string | null;
   client_email?: string | null;
   client_request_id?: string | null;
   requested_payout_address?: string | null;
