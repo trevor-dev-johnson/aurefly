@@ -1,24 +1,90 @@
 # Aurefly
 
-Aurefly is a non-custodial USDC invoicing app on Solana.
+Aurefly is a non-custodial USDC invoicing platform on Solana.
 
-This repo now runs as two separate apps:
+Create an invoice. Share a link. Get paid instantly.
 
-- [aurefly-web](C:/Users/Trevor/dev/solana-pay/aurefly-web): Next.js frontend
-- [src](C:/Users/Trevor/dev/solana-pay/src): Rust `axum` API + payment detector
+No custody. No chargebacks. No bullshit.
 
-The Rust service is API-only. It no longer serves the website.
+## What It Does
+
+- Create USDC invoices in seconds
+- Share a simple payment link or QR
+- Get paid directly to your wallet
+- Track invoice status in real time
+
+Aurefly never holds funds. Payments go straight from the payer to you.
+
+## How It Works
+
+1. Create an invoice
+2. Send the payment link
+3. Customer pays with USDC
+4. Payment is detected and confirmed on-chain
+
+That's it.
+
+## Why Aurefly
+
+- Non-custodial: your keys, your money
+- Fast settlement: Solana finality
+- No intermediaries: no Stripe-style lockups
+- Built for freelancers and online work
+
+If you can send a link, you can get paid.
+
+## Live App
+
+- Frontend: [https://aurefly.com](https://aurefly.com)
+- API: [https://aurefly-production.up.railway.app](https://aurefly-production.up.railway.app)
+
+## Supported Payments
+
+- USDC on Solana mainnet
+
+Mainnet USDC mint:
+
+- `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
+
+## Security
+
+- Payments are verified on-chain
+- No funds are ever held by Aurefly
+- Invoice matching is reference-based
+- Expired invoices are automatically invalidated
+- Confirmed payments are detector-only; there is no public payment-ingestion route
+
+## Who This Is For
+
+- Freelancers
+- Developers
+- Online businesses
+- Anyone tired of waiting days to get paid
+
+## Current Status
+
+Aurefly is live and actively being improved.
+
+## Repo Structure
+
+This repo runs as two separate apps:
+
+- `aurefly-web/`: Next.js frontend
+- `src/`: Rust `axum` API and payment detector
+
+The Rust service is API-only. It does not serve the website.
 
 ## Stack
 
 - Next.js App Router frontend
 - Rust + Axum backend API
 - SQLx + Postgres
-- Solana mainnet + Helius RPC
+- Solana mainnet
+- Helius primary RPC with optional QuickNode fallback
 
 ## Local Development
 
-1. Start Postgres + Rust API:
+1. Start Postgres and the Rust API:
 
 ```bash
 docker compose up --build
@@ -38,7 +104,7 @@ npm install
 npm run dev
 ```
 
-4. Open the frontend:
+4. Open the app:
 
 ```text
 http://localhost:3000
@@ -46,13 +112,13 @@ http://localhost:3000
 
 ## Frontend Env
 
-Create [aurefly-web/.env.local](C:/Users/Trevor/dev/solana-pay/aurefly-web/.env.local):
+Create `aurefly-web/.env.local`:
 
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
 
-There is also an example file at [aurefly-web/.env.example](C:/Users/Trevor/dev/solana-pay/aurefly-web/.env.example).
+There is also an example file at `aurefly-web/.env.example`.
 
 ## Deployment Shape
 
@@ -70,7 +136,7 @@ The frontend must point `NEXT_PUBLIC_API_URL` at the backend domain, not the fro
 
 ## Railway Backend
 
-Railway builds the Rust API from the root [Dockerfile](C:/Users/Trevor/dev/solana-pay/Dockerfile) and healthchecks:
+Railway builds the Rust API from the root `Dockerfile` and healthchecks:
 
 ```text
 /api/v1/health
@@ -83,6 +149,8 @@ DATABASE_URL=<Railway Postgres connection string>
 PORT=8080
 ALLOWED_ORIGINS=https://aurefly.com,https://www.aurefly.com
 HELIUS_API_KEY=<your-helius-key>
+SOLANA_FALLBACK_RPC_URL=<optional QuickNode HTTPS URL>
+SOLANA_FALLBACK_WS_URL=<optional QuickNode WSS URL>
 TREASURY_WALLET_JSON=<optional>
 SOLANA_FEE_PAYER_JSON=<optional>
 INVOICE_PENDING_TTL_SECS=1800
@@ -109,22 +177,15 @@ Authenticated invoice management:
 
 ## Settlement Rules
 
-- Mainnet USDC mint is fixed to `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
 - Merchants can paste a wallet address or USDC token account
 - Aurefly derives and stores the real USDC ATA internally
 - Solana Pay links use the merchant wallet pubkey as recipient
-- Pending invoices automatically expire after the configured TTL so the detector does not keep scanning stale requests forever
-- The detector credits invoices only by:
+- Invoices stay tied to the merchant's own wallet and USDC settlement account
+- Pending invoices automatically expire after the configured TTL
+- Invoices are credited only when all required conditions match:
   - destination USDC ATA
   - USDC mint
   - exact reference
   - pending invoice state
 
-Manual transfers without the Aurefly link/QR are stored as unmatched and are not auto-credited.
-
-## Security Notes
-
-- The backend is API-only; no website is served from Railway anymore
-- CORS is restricted by `ALLOWED_ORIGINS`
-- Confirmed payments are detector-only; there is no public payment-ingestion route
-- Invoice cancellation is allowed only while an invoice is still `pending`
+Manual transfers without the Aurefly link or QR are stored as unmatched and are not auto-credited.
