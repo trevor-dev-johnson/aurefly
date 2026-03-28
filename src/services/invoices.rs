@@ -200,6 +200,55 @@ pub async fn list_for_user(pool: &PgPool, user_id: Uuid) -> AppResult<Vec<Invoic
     Ok(invoices)
 }
 
+pub async fn cancel_for_user(pool: &PgPool, user_id: Uuid, invoice_id: Uuid) -> AppResult<Invoice> {
+    let result = sqlx::query(
+        r#"
+        UPDATE invoices
+        SET status = 'cancelled'
+        WHERE id = $1
+          AND user_id = $2
+          AND status = 'pending'
+        "#,
+    )
+    .bind(invoice_id)
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+
+    if result.rows_affected() == 1 {
+        return get(pool, invoice_id).await;
+    }
+
+    let existing_status = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT status
+        FROM invoices
+        WHERE id = $1
+          AND user_id = $2
+        "#,
+    )
+    .bind(invoice_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+
+    match existing_status.as_deref() {
+        None => Err(AppError::NotFound),
+        Some("cancelled") => Err(AppError::Validation(
+            "invoice is already cancelled".to_string(),
+        )),
+        Some("paid") => Err(AppError::Validation(
+            "paid invoices cannot be cancelled".to_string(),
+        )),
+        Some("expired") => Err(AppError::Validation(
+            "expired invoices cannot be cancelled".to_string(),
+        )),
+        Some(_) => Err(AppError::Validation(
+            "only pending invoices can be cancelled".to_string(),
+        )),
+    }
+}
+
 pub async fn find_reference_match_for_target(
     pool: &PgPool,
     usdc_ata: &str,

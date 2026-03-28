@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   ApiError,
+  cancelInvoice,
   clearStoredToken,
   createClientRequestId,
   createInvoice,
@@ -40,9 +41,9 @@ type Notice =
   | {
       type: "success";
       text: string;
-      invoiceId: string;
+      invoiceId?: string;
       walletPubkey?: string | null;
-      usdcAta: string;
+      usdcAta?: string;
     }
   | {
       type: "error";
@@ -94,6 +95,7 @@ export function DashboardClient() {
   const [createState, setCreateState] = useState<CreateInvoiceState>(initialInvoiceState);
   const [createRequestId, setCreateRequestId] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [cancellingInvoiceId, setCancellingInvoiceId] = useState("");
   const [notice, setNotice] = useState<Notice>(null);
 
   useEffect(() => {
@@ -208,7 +210,7 @@ export function DashboardClient() {
       0,
     );
     const pendingTotal = invoices.reduce((sum, invoice) => {
-      if (invoice.status === "paid") {
+      if (invoice.status !== "pending") {
         return sum;
       }
 
@@ -218,11 +220,13 @@ export function DashboardClient() {
       );
     }, 0);
     const paidCount = invoices.filter((invoice) => invoice.status === "paid").length;
+    const pendingCount = invoices.filter((invoice) => invoice.status === "pending").length;
 
     return {
       totalReceived,
       pendingTotal,
       paidCount,
+      pendingCount,
     };
   }, [invoices]);
 
@@ -353,6 +357,38 @@ export function DashboardClient() {
     router.replace("/");
   }
 
+  async function handleCancelInvoice(invoiceId: string) {
+    if (!token || cancellingInvoiceId || !window.confirm("Cancel this invoice?")) {
+      return;
+    }
+
+    setCancellingInvoiceId(invoiceId);
+    setNotice(null);
+
+    try {
+      const cancelledInvoice = await cancelInvoice(invoiceId, token);
+      const nextInvoices = await fetchInvoices(token);
+      setInvoices(nextInvoices);
+      setNotice({
+        type: "success",
+        text: `Invoice ${cancelledInvoice.id.slice(0, 8).toUpperCase()} cancelled.`,
+      });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        clearStoredToken();
+        router.replace("/auth?mode=sign-in");
+        return;
+      }
+
+      setNotice({
+        type: "error",
+        text: error instanceof Error ? error.message : "Unable to cancel invoice.",
+      });
+    } finally {
+      setCancellingInvoiceId("");
+    }
+  }
+
   if (loading) {
     return (
       <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-10">
@@ -465,7 +501,7 @@ export function DashboardClient() {
                 {formatMoney(metrics.pendingTotal)}
               </div>
               <div className="mt-2 text-sm text-sky-100/70">
-                {invoices.length - metrics.paidCount} open invoices
+                {metrics.pendingCount} open invoices
               </div>
             </article>
             <article className="rounded-[1.7rem] border border-white/8 bg-white/[0.03] p-5">
@@ -486,7 +522,7 @@ export function DashboardClient() {
               }`}
             >
               <p className="text-sm leading-7 text-white">{notice.text}</p>
-              {notice.type === "success" ? (
+              {notice.type === "success" && notice.invoiceId ? (
                 <div className="mt-3 text-sm leading-7 text-slate-200">
                   <Link
                     href={`/pay/${notice.invoiceId}`}
@@ -544,7 +580,9 @@ export function DashboardClient() {
                   const feeAmount = Number(invoice.platform_fee_usdc || 0);
                   const netAmount = Number(invoice.net_amount_usdc || 0);
                   const paymentLabel =
-                    paidAmount > 0
+                    invoice.status === "cancelled"
+                      ? "Cancelled"
+                      : paidAmount > 0
                       ? feeAmount > 0
                         ? `${formatMoney(paidAmount)} paid · ${formatMoney(netAmount)} after fee`
                         : `${formatMoney(paidAmount)} paid`
@@ -553,7 +591,7 @@ export function DashboardClient() {
                   return (
                     <article
                       key={invoice.id}
-                      className="grid gap-4 rounded-[1.4rem] border border-white/7 bg-[#0c1520]/80 p-4 lg:grid-cols-[110px_minmax(0,1fr)_160px_120px]"
+                      className="grid gap-4 rounded-[1.4rem] border border-white/7 bg-[#0c1520]/80 p-4 lg:grid-cols-[110px_minmax(0,1fr)_160px_180px]"
                     >
                       <div>
                         <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-slate-500">
@@ -594,18 +632,36 @@ export function DashboardClient() {
                           className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                             invoice.status === "paid"
                               ? "border border-emerald-400/18 bg-emerald-400/10 text-emerald-200"
+                              : invoice.status === "cancelled"
+                                ? "border border-rose-400/18 bg-rose-400/10 text-rose-200"
                               : "border border-white/10 bg-white/[0.05] text-slate-300"
                           }`}
                         >
-                          {invoice.status === "paid" ? "Paid" : "Pending"}
+                          {invoice.status === "paid"
+                            ? "Paid"
+                            : invoice.status === "cancelled"
+                              ? "Cancelled"
+                              : "Pending"}
                         </span>
-                        <Link
-                          href={`/pay/${invoice.id}`}
-                          target="_blank"
-                          className="text-sm font-medium text-sky-300 transition hover:text-sky-200"
-                        >
-                          View
-                        </Link>
+                        <div className="flex items-center gap-4 lg:flex-col lg:items-end">
+                          {invoice.status === "pending" ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleCancelInvoice(invoice.id)}
+                              disabled={cancellingInvoiceId === invoice.id}
+                              className="text-sm font-medium text-rose-200 transition hover:text-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {cancellingInvoiceId === invoice.id ? "Cancelling..." : "Cancel"}
+                            </button>
+                          ) : null}
+                          <Link
+                            href={`/pay/${invoice.id}`}
+                            target="_blank"
+                            className="text-sm font-medium text-sky-300 transition hover:text-sky-200"
+                          >
+                            View
+                          </Link>
+                        </div>
                       </div>
                     </article>
                   );

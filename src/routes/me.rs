@@ -1,7 +1,7 @@
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::{HeaderMap, StatusCode},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Deserializer};
@@ -18,7 +18,9 @@ use crate::{
 };
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/invoices", get(list_invoices).post(create_invoice))
+    Router::new()
+        .route("/invoices", get(list_invoices).post(create_invoice))
+        .route("/invoices/{invoice_id}/cancel", post(cancel_invoice))
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,6 +91,17 @@ async fn create_invoice(
         StatusCode::CREATED,
         Json(InvoiceResponse::from_private_invoice(invoice, None)?),
     ))
+}
+
+async fn cancel_invoice(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(invoice_id): Path<Uuid>,
+) -> AppResult<Json<InvoiceResponse>> {
+    let user = require_user(&headers, &state).await?;
+    let invoice = invoices::cancel_for_user(&state.pool, user.id, invoice_id).await?;
+
+    Ok(Json(InvoiceResponse::from_private_invoice(invoice, None)?))
 }
 
 fn deserialize_nullable_string<'de, D>(deserializer: D) -> Result<String, D::Error>

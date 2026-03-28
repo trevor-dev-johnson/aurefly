@@ -6,7 +6,7 @@ export type PublicInvoice = {
   platform_fee_bps?: number;
   net_amount_usdc?: string;
   paid_amount_usdc?: string;
-  status: "pending" | "paid" | "expired" | string;
+  status: "pending" | "paid" | "expired" | "cancelled" | string;
   description?: string | null;
   usdc_ata: string;
   wallet_pubkey?: string | null;
@@ -197,6 +197,13 @@ export async function createInvoice(payload: CreateInvoicePayload, token: string
   return apiFetch<MerchantInvoice>("/me/invoices", {
     method: "POST",
     body: JSON.stringify(payload),
+    token,
+  });
+}
+
+export async function cancelInvoice(invoiceId: string, token: string) {
+  return apiFetch<MerchantInvoice>(`/me/invoices/${invoiceId}/cancel`, {
+    method: "POST",
     token,
   });
 }

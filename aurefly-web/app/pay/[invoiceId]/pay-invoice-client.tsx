@@ -45,7 +45,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
   }, []);
 
   useEffect(() => {
-    if (currentInvoice.status === "paid") {
+    if (currentInvoice.status !== "pending") {
       return;
     }
 
@@ -75,7 +75,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
 
         setCurrentInvoice(nextInvoice);
 
-        if (nextInvoice.status !== "paid") {
+        if (nextInvoice.status === "pending") {
           scheduleRefresh();
         }
       } catch {
@@ -86,7 +86,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
     };
 
     const handleVisibility = () => {
-      if (document.hidden || currentInvoice.status === "paid") {
+      if (document.hidden || currentInvoice.status !== "pending") {
         return;
       }
 
@@ -108,7 +108,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
 
   useEffect(() => {
     return () => {
-      if (copyResetRef.current) {
+      if (copyResetRef.current !== null) {
         window.clearTimeout(copyResetRef.current);
       }
     };
@@ -116,7 +116,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
 
   useEffect(() => {
     if (
-      currentInvoice.status === "paid" ||
+      currentInvoice.status !== "pending" ||
       currentInvoice.payment_observed ||
       Number(currentInvoice.paid_amount_usdc || 0) > 0
     ) {
@@ -134,12 +134,17 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
   const hasObservedPayment =
     Boolean(currentInvoice.payment_observed) && currentInvoice.status !== "paid" && !hasDetectedPayment;
   const isAwaitingWalletApproval =
-    awaitingWalletApproval && !hasObservedPayment && !hasDetectedPayment && currentInvoice.status !== "paid";
+    awaitingWalletApproval &&
+    !hasObservedPayment &&
+    !hasDetectedPayment &&
+    currentInvoice.status === "pending";
   const txUrl = currentInvoice.latest_payment_tx_url || currentInvoice.payment_observed_tx_url;
 
   const stateVariant =
     currentInvoice.status === "paid"
       ? "paid"
+      : currentInvoice.status === "cancelled"
+        ? "cancelled"
       : hasDetectedPayment
         ? "detected"
         : hasObservedPayment
@@ -149,16 +154,20 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
   const stateLabel =
     currentInvoice.status === "paid"
       ? "Payment complete"
+      : currentInvoice.status === "cancelled"
+        ? "Invoice cancelled"
       : hasDetectedPayment
         ? "Payment detected..."
         : hasObservedPayment
           ? "Transaction detected... confirming"
           : "Waiting for payment...";
 
-  const statusText = !paymentRouteReady && currentInvoice.status !== "paid"
+  const statusText = !paymentRouteReady && currentInvoice.status === "pending"
     ? "This invoice is missing required payment routing metadata. Ask the merchant to regenerate it."
     : currentInvoice.status === "paid"
       ? `${formatMoney(currentInvoice.paid_amount_usdc)} received.`
+      : currentInvoice.status === "cancelled"
+        ? "This invoice is no longer accepting payment."
       : hasDetectedPayment
         ? `${formatMoney(currentInvoice.paid_amount_usdc)} received so far. Waiting for the full amount.`
         : hasObservedPayment
@@ -167,9 +176,14 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
             ? "Open your wallet to approve the payment."
             : "Use the Aurefly payment link or QR. Manual transfers may not be credited automatically.";
 
-  const statusDetail = currentInvoice.status === "paid" ? "Transaction confirmed on Solana." : null;
+  const statusDetail =
+    currentInvoice.status === "paid"
+      ? "Transaction confirmed on Solana."
+      : currentInvoice.status === "cancelled"
+        ? "Ask the merchant for a new invoice if you still need to pay."
+        : null;
   function handlePayClick(event: React.MouseEvent<HTMLAnchorElement>) {
-    if (currentInvoice.status === "paid") {
+    if (currentInvoice.status !== "pending") {
       return;
     }
 
@@ -187,7 +201,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
     await navigator.clipboard.writeText(paymentRecipient);
     setCopyLabel(`Copied ✓ ${paymentRecipient.slice(-5)}`);
 
-    if (copyResetRef.current) {
+    if (copyResetRef.current !== null) {
       window.clearTimeout(copyResetRef.current);
     }
 
@@ -249,7 +263,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  {currentInvoice.status !== "paid" ? (
+                  {currentInvoice.status === "pending" ? (
                     <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent text-slate-300" />
                   ) : (
                     <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400/18 text-[10px] text-emerald-300">
@@ -280,7 +294,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
             </div>
 
             <div className="flex min-w-0 flex-col justify-center gap-4">
-              {currentInvoice.status !== "paid" && paymentRouteReady ? (
+              {currentInvoice.status === "pending" && paymentRouteReady ? (
                 <a
                   href={currentInvoice.payment_uri || "#"}
                   onClick={handlePayClick}
@@ -290,55 +304,66 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
                 </a>
               ) : null}
 
-              <div className="grid gap-4 rounded-[1.45rem] border border-white/6 bg-white/[0.025] p-4 sm:p-5">
-                <div className="mx-auto w-full max-w-[220px] rounded-[1.2rem] bg-white p-3 shadow-[0_14px_30px_rgba(0,0,0,0.22)]">
-                  <img
-                    src={`${apiBase}/api/v1/public/invoices/${currentInvoice.id}/qr.svg`}
-                    alt="Invoice QR code"
-                    className="block h-auto w-full"
-                  />
+              {currentInvoice.status === "cancelled" ? (
+                <div className="grid gap-3 rounded-[1.45rem] border border-white/6 bg-white/[0.025] p-5 text-left">
+                  <span className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
+                    Invoice status
+                  </span>
+                  <p className="text-sm leading-7 text-slate-300">
+                    This invoice has been cancelled by the merchant and should no longer be paid.
+                  </p>
                 </div>
-
-                <div className="grid gap-3">
-                  <div className="grid gap-2 text-left">
-                    <span className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
-                      Payment address
-                    </span>
-                    <code className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white">
-                      {shortAddress(paymentRecipient)}
-                    </code>
-                    <p className="text-xs leading-6 text-slate-400">
-                      The QR and pay button both use this exact Solana Pay destination.
-                    </p>
+              ) : (
+                <div className="grid gap-4 rounded-[1.45rem] border border-white/6 bg-white/[0.025] p-4 sm:p-5">
+                  <div className="mx-auto w-full max-w-[220px] rounded-[1.2rem] bg-white p-3 shadow-[0_14px_30px_rgba(0,0,0,0.22)]">
+                    <img
+                      src={`${apiBase}/api/v1/public/invoices/${currentInvoice.id}/qr.svg`}
+                      alt="Invoice QR code"
+                      className="block h-auto w-full"
+                    />
                   </div>
 
-                  {currentInvoice.usdc_ata ? (
+                  <div className="grid gap-3">
                     <div className="grid gap-2 text-left">
                       <span className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
-                        USDC settlement account
+                        Payment address
                       </span>
                       <code className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white">
-                        {shortAddress(currentInvoice.usdc_ata)}
+                        {shortAddress(paymentRecipient)}
                       </code>
                       <p className="text-xs leading-6 text-slate-400">
-                        Your wallet routes the USDC transfer here automatically.
+                        The QR and pay button both use this exact Solana Pay destination.
                       </p>
                     </div>
-                  ) : null}
+
+                    {currentInvoice.usdc_ata ? (
+                      <div className="grid gap-2 text-left">
+                        <span className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
+                          USDC settlement account
+                        </span>
+                        <code className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white">
+                          {shortAddress(currentInvoice.usdc_ata)}
+                        </code>
+                        <p className="text-xs leading-6 text-slate-400">
+                          Your wallet routes the USDC transfer here automatically.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyClick}
+                    className="inline-flex h-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.05]"
+                  >
+                    {copyLabel}
+                  </button>
+
+                  <p className="text-center text-sm leading-7 text-slate-400">
+                    Use the Aurefly payment link or QR so your payment is credited automatically.
+                  </p>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleCopyClick}
-                  className="inline-flex h-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.05]"
-                >
-                  {copyLabel}
-                </button>
-
-                <p className="text-center text-sm leading-7 text-slate-400">
-                  Use the Aurefly payment link or QR so your payment is credited automatically.
-                </p>
-              </div>
+              )}
             </div>
           </div>
         </section>

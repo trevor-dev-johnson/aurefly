@@ -29,7 +29,7 @@ let fastPollUntil = Date.now() + FAST_POLL_EXTENSION_MS;
 let copyResetTimer = null;
 
 payButton.addEventListener("click", (event) => {
-  if (!currentInvoice || currentInvoice.status === "paid") {
+  if (!currentInvoice || currentInvoice.status !== "pending") {
     return;
   }
 
@@ -65,7 +65,7 @@ copyAddressButton.addEventListener("click", async () => {
 });
 
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden || !currentInvoice || currentInvoice.status === "paid") {
+  if (document.hidden || !currentInvoice || currentInvoice.status !== "pending") {
     return;
   }
 
@@ -86,7 +86,7 @@ async function loadInvoice() {
     extendFastPolling(30000);
   }
 
-  if (invoice.status === "paid") {
+  if (invoice.status !== "pending") {
     awaitingWalletApproval = false;
   }
 
@@ -104,11 +104,19 @@ function renderInvoice(invoice) {
   const hasObservedPayment = Boolean(invoice.payment_observed) && invoice.status !== "paid" && !hasDetectedPayment;
   const txUrl = invoice.latest_payment_tx_url || invoice.payment_observed_tx_url;
   const paymentRecipient = getPaymentRecipient(invoice);
-  const variant = invoice.status === "paid" ? "paid" : hasDetectedPayment ? "detected" : hasObservedPayment ? "confirming" : "waiting";
+  const variant = invoice.status === "paid"
+    ? "paid"
+    : invoice.status === "cancelled"
+      ? "confirming"
+      : hasDetectedPayment
+        ? "detected"
+        : hasObservedPayment
+          ? "confirming"
+          : "waiting";
 
   document.title = invoice.status === "paid" ? "Aurefly Receipt" : "Aurefly Invoice";
   invoiceCard.classList.toggle("invoice-card-paid", invoice.status === "paid");
-  invoiceActionsPanel.classList.toggle("hidden", invoice.status === "paid" || !paymentRouteReady);
+  invoiceActionsPanel.classList.toggle("hidden", invoice.status !== "pending" || !paymentRouteReady);
   invoiceTotal.textContent = formatMoney(totalAmount);
   invoiceSubtotal.textContent = formatMoney(subtotalAmount);
   invoiceFee.textContent = feeAmount > 0 ? `Paid by merchant (${formatMoney(feeAmount)})` : "No fee";
@@ -138,7 +146,7 @@ function renderInvoice(invoice) {
   );
   statePanel.classList.add(`status-panel-${variant}`);
 
-  if (!paymentRouteReady && invoice.status !== "paid") {
+  if (!paymentRouteReady && invoice.status === "pending") {
     renderPaymentConfigurationError();
     return;
   }
@@ -146,17 +154,21 @@ function renderInvoice(invoice) {
   stateLabel.textContent =
     invoice.status === "paid"
       ? "Payment complete"
+      : invoice.status === "cancelled"
+        ? "Invoice cancelled"
       : hasDetectedPayment
         ? "Payment detected..."
         : hasObservedPayment
           ? "Transaction detected... confirming"
           : "Waiting for payment...";
 
-  statusSpinner.classList.toggle("hidden", invoice.status === "paid");
+  statusSpinner.classList.toggle("hidden", invoice.status === "paid" || invoice.status === "cancelled");
 
   statusText.textContent =
     invoice.status === "paid"
       ? `${formatMoney(paidAmount)} received.`
+      : invoice.status === "cancelled"
+        ? "This invoice is no longer accepting payment."
       : hasDetectedPayment
         ? `${formatMoney(paidAmount)} received so far. Waiting for the full amount.`
         : hasObservedPayment
@@ -165,8 +177,12 @@ function renderInvoice(invoice) {
             ? "Open your wallet to approve the payment."
             : "Use the Aurefly payment link or QR. Manual transfers may not be credited automatically.";
 
-  statusDetail.classList.toggle("hidden", invoice.status !== "paid");
-  statusDetail.textContent = invoice.status === "paid" ? "Transaction confirmed on Solana." : "";
+  statusDetail.classList.toggle("hidden", !["paid", "cancelled"].includes(invoice.status));
+  statusDetail.textContent = invoice.status === "paid"
+    ? "Transaction confirmed on Solana."
+    : invoice.status === "cancelled"
+      ? "Ask the merchant for a new invoice if you still need to pay."
+      : "";
 
   if (txUrl) {
     invoiceTxLink.href = txUrl;
@@ -211,7 +227,7 @@ function scheduleNextPoll(immediate = false) {
     window.clearTimeout(pollTimer);
   }
 
-  if (currentInvoice && currentInvoice.status === "paid") {
+  if (currentInvoice && currentInvoice.status !== "pending") {
     pollTimer = null;
     return;
   }
