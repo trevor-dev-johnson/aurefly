@@ -8,7 +8,6 @@ use futures_util::{SinkExt, StreamExt};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use sqlx::PgPool;
-use tokio::time::Instant;
 use tokio::task::JoinHandle;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use uuid::Uuid;
@@ -38,13 +37,23 @@ struct PollStats {
     processed_signature_count: usize,
 }
 
-const DETECTOR_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
+const DETECTOR_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(15);
 
 pub async fn run(
     pool: PgPool,
     solana: SolanaRpcClient,
     config: PaymentDetectorConfig,
 ) {
+    let startup_targets = load_pending_targets(&pool).await;
+    tracing::info!(
+        rpc = %solana.redacted_rpc_url(),
+        ata_count = startup_targets.len(),
+        ata = %format_target_preview(&startup_targets),
+        poll_interval_secs = config.poll_interval.as_secs(),
+        signature_limit = config.signature_limit,
+        websocket_enabled = solana.websocket_url().is_some(),
+        "[detector] started"
+    );
     tracing::info!(
         signal_source = DetectionSource::Polling.as_str(),
         poll_interval_secs = config.poll_interval.as_secs(),
@@ -62,9 +71,23 @@ pub async fn run(
     let poll_config = config.clone();
 
     tokio::join!(
+        run_heartbeat_loop(pool.clone(), solana.clone()),
         run_poll_loop(poll_pool, poll_solana, poll_config),
         run_logs_manager_loop(pool, solana)
     );
+}
+
+async fn run_heartbeat_loop(pool: PgPool, solana: SolanaRpcClient) {
+    loop {
+        tokio::time::sleep(DETECTOR_HEARTBEAT_INTERVAL).await;
+        let targets = load_pending_targets(&pool).await;
+        tracing::info!(
+            rpc = %solana.redacted_rpc_url(),
+            ata_count = targets.len(),
+            ata = %format_target_preview(&targets),
+            "[detector] alive"
+        );
+    }
 }
 
 async fn run_poll_loop(
@@ -74,24 +97,20 @@ async fn run_poll_loop(
 ) {
     let mut cursors = HashMap::<String, DetectorCursor>::new();
     let mut consecutive_rate_limits = 0u32;
-    let mut last_heartbeat = Instant::now() - DETECTOR_HEARTBEAT_INTERVAL;
 
     loop {
         match poll_once(&pool, &solana, &config, &mut cursors).await {
             Ok(stats) => {
                 consecutive_rate_limits = 0;
-                if last_heartbeat.elapsed() >= DETECTOR_HEARTBEAT_INTERVAL {
-                    tracing::info!(
-                        signal_source = DetectionSource::Polling.as_str(),
-                        pending_targets = stats.pending_target_count,
-                        tracked_cursors = cursors.len(),
-                        new_signatures = stats.new_signature_count,
-                        processed_signatures = stats.processed_signature_count,
-                        poll_interval_secs = config.poll_interval.as_secs(),
-                        "payment detector alive"
-                    );
-                    last_heartbeat = Instant::now();
-                }
+                tracing::debug!(
+                    signal_source = DetectionSource::Polling.as_str(),
+                    pending_targets = stats.pending_target_count,
+                    tracked_cursors = cursors.len(),
+                    new_signatures = stats.new_signature_count,
+                    processed_signatures = stats.processed_signature_count,
+                    poll_interval_secs = config.poll_interval.as_secs(),
+                    "payment detector poll cycle completed"
+                );
                 tokio::time::sleep(config.poll_interval).await;
             }
             Err(error @ AppError::RateLimited { .. }) => {
@@ -124,7 +143,6 @@ async fn run_logs_manager_loop(pool: PgPool, solana: SolanaRpcClient) {
         return;
     };
     let mut subscriptions = HashMap::<String, JoinHandle<()>>::new();
-    let mut last_heartbeat = Instant::now() - DETECTOR_HEARTBEAT_INTERVAL;
 
     loop {
         match invoices::list_pending_settlement_targets(&pool).await {
@@ -176,16 +194,12 @@ async fn run_logs_manager_loop(pool: PgPool, solana: SolanaRpcClient) {
 
                     subscriptions.insert(target.usdc_ata, handle);
                 }
-
-                if last_heartbeat.elapsed() >= DETECTOR_HEARTBEAT_INTERVAL {
-                    tracing::info!(
-                        signal_source = DetectionSource::LogsSubscribe.as_str(),
-                        pending_targets = active_targets.len(),
-                        active_subscriptions = subscriptions.len(),
-                        "payment detector websocket manager alive"
-                    );
-                    last_heartbeat = Instant::now();
-                }
+                tracing::debug!(
+                    signal_source = DetectionSource::LogsSubscribe.as_str(),
+                    pending_targets = active_targets.len(),
+                    active_subscriptions = subscriptions.len(),
+                    "payment detector websocket target refresh completed"
+                );
             }
             Err(error) => {
                 tracing::warn!(error = %error, "payment detector failed to refresh pending websocket targets");
@@ -791,6 +805,36 @@ fn sanitize_pending_targets(
             }
         })
         .collect()
+}
+
+async fn load_pending_targets(pool: &PgPool) -> Vec<invoices::PendingSettlementTarget> {
+    match invoices::list_pending_settlement_targets(pool).await {
+        Ok(targets) => sanitize_pending_targets(targets),
+        Err(error) => {
+            tracing::warn!(error = %error, "[detector] failed to load pending settlement targets");
+            Vec::new()
+        }
+    }
+}
+
+fn format_target_preview(targets: &[invoices::PendingSettlementTarget]) -> String {
+    if targets.is_empty() {
+        return "none".to_string();
+    }
+
+    const MAX_TARGET_PREVIEW: usize = 3;
+    let mut preview = targets
+        .iter()
+        .take(MAX_TARGET_PREVIEW)
+        .map(|target| target.usdc_ata.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    if targets.len() > MAX_TARGET_PREVIEW {
+        preview.push_str(&format!(", +{} more", targets.len() - MAX_TARGET_PREVIEW));
+    }
+
+    preview
 }
 
 #[derive(Clone, Copy)]

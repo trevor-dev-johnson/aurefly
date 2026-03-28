@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let solana = SolanaRpcClient::new(config.solana_rpc_url.clone());
-    let redacted_rpc_url = redact_rpc_url(&config.solana_rpc_url);
+    let redacted_rpc_url = solana.redacted_rpc_url();
     let rpc_provider = detect_rpc_provider(&config.solana_rpc_url);
     tracing::info!(rpc_provider, rpc_url = %redacted_rpc_url, "using Solana RPC endpoint");
 
@@ -110,25 +110,6 @@ async fn shutdown_signal() {
     if tokio::signal::ctrl_c().await.is_ok() {
         tracing::info!("shutdown signal received");
     }
-}
-
-fn redact_rpc_url(value: &str) -> String {
-    let Some((base, query)) = value.split_once('?') else {
-        return value.to_string();
-    };
-
-    let redacted_query = query
-        .split('&')
-        .map(|pair| match pair.split_once('=') {
-            Some((key, _)) if key.eq_ignore_ascii_case("api-key") => {
-                format!("{key}=REDACTED")
-            }
-            _ => pair.to_string(),
-        })
-        .collect::<Vec<_>>()
-        .join("&");
-
-    format!("{base}?{redacted_query}")
 }
 
 fn detect_rpc_provider(value: &str) -> &'static str {

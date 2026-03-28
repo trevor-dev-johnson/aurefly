@@ -55,6 +55,25 @@ impl SolanaRpcClient {
         }
     }
 
+    pub fn redacted_rpc_url(&self) -> String {
+        let Some((base, query)) = self.rpc_url.split_once('?') else {
+            return self.rpc_url.clone();
+        };
+
+        let redacted_query = query
+            .split('&')
+            .map(|pair| match pair.split_once('=') {
+                Some((key, _)) if key.eq_ignore_ascii_case("api-key") => {
+                    format!("{key}=REDACTED")
+                }
+                _ => pair.to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join("&");
+
+        format!("{base}?{redacted_query}")
+    }
+
     pub fn websocket_url(&self) -> Option<&str> {
         self.ws_url.as_deref()
     }
