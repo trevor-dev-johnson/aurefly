@@ -148,10 +148,11 @@ async fn run_logs_manager_loop(
     solana: SolanaRpcClient,
     pending_invoice_ttl: Duration,
 ) {
-    let Some(ws_url) = solana.websocket_url().map(str::to_string) else {
+    let ws_urls = solana.websocket_urls();
+    if ws_urls.is_empty() {
         tracing::warn!("payment detector websocket disabled: unable to derive websocket URL from RPC URL");
         return;
-    };
+    }
     let mut subscriptions = HashMap::<String, JoinHandle<()>>::new();
 
     loop {
@@ -185,7 +186,7 @@ async fn run_logs_manager_loop(
 
             let task_pool = pool.clone();
             let task_solana = solana.clone();
-            let ws_url = ws_url.clone();
+            let ws_urls = ws_urls.clone();
             let recipient_token_account = target.usdc_ata.clone();
             let token_mint = target.usdc_mint.clone();
 
@@ -193,7 +194,7 @@ async fn run_logs_manager_loop(
                 run_logs_subscription_loop_for_target(
                     task_pool,
                     task_solana,
-                    ws_url,
+                    ws_urls,
                     recipient_token_account,
                     token_mint,
                 )
@@ -216,17 +217,19 @@ async fn run_logs_manager_loop(
 async fn run_logs_subscription_loop_for_target(
     pool: PgPool,
     solana: SolanaRpcClient,
-    ws_url: String,
+    ws_urls: Vec<String>,
     recipient_token_account: String,
     token_mint: String,
 ) {
     let mut reconnect_backoff = Duration::from_secs(1);
+    let mut ws_index = 0usize;
 
     loop {
+        let ws_url = &ws_urls[ws_index % ws_urls.len()];
         match consume_logs_subscription(
             &pool,
             &solana,
-            &ws_url,
+            ws_url,
             &recipient_token_account,
             &token_mint,
         )
@@ -254,6 +257,7 @@ async fn run_logs_subscription_loop_for_target(
 
         tokio::time::sleep(reconnect_backoff).await;
         reconnect_backoff = websocket_backoff(reconnect_backoff);
+        ws_index = ws_index.wrapping_add(1);
     }
 }
 

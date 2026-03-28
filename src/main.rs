@@ -47,10 +47,26 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-    let solana = SolanaRpcClient::new(config.solana_rpc_url.clone());
+    let solana = SolanaRpcClient::new(
+        config.solana_rpc_url.clone(),
+        config.solana_fallback_rpc_url.clone(),
+        config.solana_fallback_ws_url.clone(),
+    );
     let redacted_rpc_url = solana.redacted_rpc_url();
+    let redacted_fallback_rpc_url = solana.redacted_fallback_rpc_url();
     let rpc_provider = detect_rpc_provider(&config.solana_rpc_url);
-    tracing::info!(rpc_provider, rpc_url = %redacted_rpc_url, "using Solana RPC endpoint");
+    let fallback_rpc_provider = config
+        .solana_fallback_rpc_url
+        .as_deref()
+        .map(detect_rpc_provider)
+        .unwrap_or("none");
+    tracing::info!(
+        rpc_provider,
+        rpc_url = %redacted_rpc_url,
+        fallback_rpc_provider,
+        fallback_rpc_url = ?redacted_fallback_rpc_url,
+        "using Solana RPC endpoint"
+    );
 
     let detector_poll_interval = Duration::from_secs(config.payment_detector_poll_interval_secs);
     let detector_signature_limit = config.payment_detector_signature_limit;

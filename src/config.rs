@@ -12,6 +12,8 @@ pub struct Config {
     pub port: u16,
     pub allowed_origins: Vec<String>,
     pub solana_rpc_url: String,
+    pub solana_fallback_rpc_url: Option<String>,
+    pub solana_fallback_ws_url: Option<String>,
     pub treasury_wallet_path: String,
     pub treasury_wallet_json: Option<String>,
     pub solana_fee_payer_path: Option<String>,
@@ -68,6 +70,8 @@ impl Config {
                 })
             })
             .unwrap_or_else(|| "https://api.mainnet-beta.solana.com".to_string());
+        let solana_fallback_rpc_url = optional_env("SOLANA_FALLBACK_RPC_URL");
+        let solana_fallback_ws_url = optional_env("SOLANA_FALLBACK_WS_URL");
         let treasury_wallet_path = env::var("TREASURY_WALLET_PATH")
             .unwrap_or_else(|_| "./data/treasury-wallet.json".to_string());
         let treasury_wallet_json = optional_env("TREASURY_WALLET_JSON");
@@ -107,6 +111,8 @@ impl Config {
             port,
             allowed_origins,
             solana_rpc_url,
+            solana_fallback_rpc_url,
+            solana_fallback_ws_url,
             treasury_wallet_path,
             treasury_wallet_json,
             solana_fee_payer_path,

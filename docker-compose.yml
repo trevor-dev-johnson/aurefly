@@ -31,6 +31,8 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://aurefly.com,https://www.aurefly.com,http://localhost:3000,http://127.0.0.1:3000}
       SOLANA_RPC_URL: ${SOLANA_RPC_URL:-}
       HELIUS_API_KEY: ${HELIUS_API_KEY:-}
+      SOLANA_FALLBACK_RPC_URL: ${SOLANA_FALLBACK_RPC_URL:-}
+      SOLANA_FALLBACK_WS_URL: ${SOLANA_FALLBACK_WS_URL:-}
       TREASURY_WALLET_PATH: /data/treasury-wallet.json
       SOLANA_FEE_PAYER_PATH: /solana/id.json
       AUTH_RATE_LIMIT_MAX_REQUESTS: ${AUTH_RATE_LIMIT_MAX_REQUESTS:-10}

@@ -34,6 +34,8 @@ pub struct SolanaRpcClient {
     http: Client,
     rpc_url: String,
     ws_url: Option<String>,
+    fallback_rpc_url: Option<String>,
+    fallback_ws_url: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -44,7 +46,15 @@ pub struct ResolvedUsdcSettlement {
 }
 
 impl SolanaRpcClient {
-    pub fn new(rpc_url: String) -> Self {
+    pub fn new(
+        rpc_url: String,
+        fallback_rpc_url: Option<String>,
+        fallback_ws_url: Option<String>,
+    ) -> Self {
+        let derived_fallback_ws_url = fallback_rpc_url
+            .as_deref()
+            .and_then(derive_websocket_url);
+
         Self {
             http: Client::builder()
                 .timeout(Duration::from_secs(RPC_HTTP_TIMEOUT_SECS))
@@ -52,30 +62,41 @@ impl SolanaRpcClient {
                 .unwrap_or_else(|_| Client::new()),
             ws_url: derive_websocket_url(&rpc_url),
             rpc_url,
+            fallback_ws_url: fallback_ws_url.or(derived_fallback_ws_url),
+            fallback_rpc_url,
         }
     }
 
     pub fn redacted_rpc_url(&self) -> String {
-        let Some((base, query)) = self.rpc_url.split_once('?') else {
-            return self.rpc_url.clone();
-        };
+        redact_rpc_url(&self.rpc_url)
+    }
 
-        let redacted_query = query
-            .split('&')
-            .map(|pair| match pair.split_once('=') {
-                Some((key, _)) if key.eq_ignore_ascii_case("api-key") => {
-                    format!("{key}=REDACTED")
-                }
-                _ => pair.to_string(),
-            })
-            .collect::<Vec<_>>()
-            .join("&");
-
-        format!("{base}?{redacted_query}")
+    pub fn redacted_fallback_rpc_url(&self) -> Option<String> {
+        self.fallback_rpc_url
+            .as_deref()
+            .map(redact_rpc_url)
     }
 
     pub fn websocket_url(&self) -> Option<&str> {
-        self.ws_url.as_deref()
+        self.ws_url
+            .as_deref()
+            .or(self.fallback_ws_url.as_deref())
+    }
+
+    pub fn websocket_urls(&self) -> Vec<String> {
+        let mut urls = Vec::new();
+
+        if let Some(url) = self.ws_url.as_ref() {
+            urls.push(url.clone());
+        }
+
+        if let Some(url) = self.fallback_ws_url.as_ref() {
+            if !urls.iter().any(|existing| existing == url) {
+                urls.push(url.clone());
+            }
+        }
+
+        urls
     }
 
     pub async fn account_exists(&self, address: &str) -> AppResult<bool> {
@@ -527,100 +548,87 @@ impl SolanaRpcClient {
         let mut backoff = Duration::from_millis(RPC_INITIAL_BACKOFF_MILLIS);
 
         for attempt in 1..=RPC_MAX_ATTEMPTS {
-            let response = match self.http.post(&self.rpc_url).json(&payload).send().await {
-                Ok(response) => response,
-                Err(error) => {
-                    if attempt < RPC_MAX_ATTEMPTS {
+            let mut round_rate_limit: Option<Duration> = None;
+            let mut round_last_error: Option<AppError> = None;
+
+            for endpoint in self.rpc_endpoints() {
+                match self.post_to_endpoint::<T>(&endpoint.rpc_url, &payload).await {
+                    Ok(parsed) => {
+                        if endpoint.rpc_url != self.rpc_url {
+                            tracing::warn!(
+                                rpc_method = method,
+                                active_rpc = %redact_rpc_url(&endpoint.rpc_url),
+                                primary_rpc = %self.redacted_rpc_url(),
+                                "Solana RPC primary unavailable; using fallback endpoint"
+                            );
+                        }
+                        return Ok(parsed);
+                    }
+                    Err(EndpointPostError::RateLimited {
+                        retry_after,
+                        response_body,
+                    }) => {
+                        round_rate_limit = Some(match round_rate_limit {
+                            Some(current) => current.max(retry_after),
+                            None => retry_after,
+                        });
                         tracing::warn!(
                             rpc_method = method,
+                            rpc_url = %redact_rpc_url(&endpoint.rpc_url),
+                            attempt,
+                            max_attempts = RPC_RATE_LIMIT_RETRY_ATTEMPTS,
+                            backoff_ms = retry_after.as_millis() as u64,
+                            response_body = %truncate_for_log(&response_body),
+                            "Solana RPC rate limited on endpoint"
+                        );
+                    }
+                    Err(EndpointPostError::Retryable(message)) => {
+                        round_last_error =
+                            Some(AppError::Internal(anyhow::anyhow!(message.clone())));
+                        tracing::warn!(
+                            rpc_method = method,
+                            rpc_url = %redact_rpc_url(&endpoint.rpc_url),
                             attempt,
                             max_attempts = RPC_MAX_ATTEMPTS,
                             backoff_ms = backoff.as_millis() as u64,
-                            error = %error,
-                            "Solana RPC transport failure; retrying"
+                            error = %message,
+                            "Solana RPC endpoint failure; trying next endpoint or retrying"
                         );
-                        tokio::time::sleep(backoff).await;
-                        backoff = next_backoff(backoff, Duration::from_millis(RPC_MAX_BACKOFF_MILLIS));
-                        continue;
                     }
-
-                    return Err(AppError::Internal(anyhow::anyhow!(
-                        "Solana RPC {method} failed after {RPC_MAX_ATTEMPTS} attempts: {error}"
-                    )));
-                }
-            };
-
-            let status = response.status();
-            if !status.is_success() {
-                let retry_after = retry_after_from_headers(response.headers())
-                    .unwrap_or_else(|| default_retry_after_for_status(status.as_u16(), attempt));
-                let response_body = response.text().await.unwrap_or_default();
-
-                if status.as_u16() == 429 {
-                    if attempt < RPC_RATE_LIMIT_RETRY_ATTEMPTS {
+                    Err(EndpointPostError::Fatal(error)) => {
                         tracing::warn!(
                             rpc_method = method,
+                            rpc_url = %redact_rpc_url(&endpoint.rpc_url),
                             attempt,
-                            max_attempts = RPC_RATE_LIMIT_RETRY_ATTEMPTS,
-                            status = status.as_u16(),
-                            backoff_ms = retry_after.as_millis() as u64,
-                            response_body = %truncate_for_log(&response_body),
-                            "Solana RPC rate limited; retrying with cooldown"
+                            error = %error,
+                            "Solana RPC endpoint returned a fatal error"
                         );
-                        tokio::time::sleep(retry_after).await;
-                        continue;
+                        round_last_error = Some(error);
                     }
-
-                    return Err(AppError::RateLimited {
-                        service: "Solana RPC",
-                        operation: method.to_string(),
-                        retry_after_secs: retry_after.as_secs().max(1),
-                    });
                 }
+            }
 
-                if attempt < RPC_MAX_ATTEMPTS && should_retry_http_status(status.as_u16()) {
-                    tracing::warn!(
-                        rpc_method = method,
-                        attempt,
-                        max_attempts = RPC_MAX_ATTEMPTS,
-                        status = status.as_u16(),
-                        backoff_ms = backoff.as_millis() as u64,
-                        response_body = %truncate_for_log(&response_body),
-                        "Solana RPC HTTP failure; retrying"
-                    );
-                    tokio::time::sleep(backoff).await;
-                    backoff = next_backoff(backoff, Duration::from_millis(RPC_MAX_BACKOFF_MILLIS));
+            if let Some(retry_after) = round_rate_limit {
+                if attempt < RPC_RATE_LIMIT_RETRY_ATTEMPTS {
+                    tokio::time::sleep(retry_after).await;
                     continue;
                 }
 
-                return Err(AppError::Internal(anyhow::anyhow!(
-                    "Solana RPC {method} failed with HTTP {}: {}",
-                    status.as_u16(),
-                    truncate_for_log(&response_body)
-                )));
+                return Err(AppError::RateLimited {
+                    service: "Solana RPC",
+                    operation: method.to_string(),
+                    retry_after_secs: retry_after.as_secs().max(1),
+                });
             }
 
-            match response.json::<T>().await {
-                Ok(parsed) => return Ok(parsed),
-                Err(error) => {
-                    if attempt < RPC_MAX_ATTEMPTS {
-                        tracing::warn!(
-                            rpc_method = method,
-                            attempt,
-                            max_attempts = RPC_MAX_ATTEMPTS,
-                            backoff_ms = backoff.as_millis() as u64,
-                            error = %error,
-                            "Solana RPC response decode failure; retrying"
-                        );
-                        tokio::time::sleep(backoff).await;
-                        backoff = next_backoff(backoff, Duration::from_millis(RPC_MAX_BACKOFF_MILLIS));
-                        continue;
-                    }
+            if attempt < RPC_MAX_ATTEMPTS {
+                tokio::time::sleep(backoff).await;
+                backoff = next_backoff(backoff, Duration::from_millis(RPC_MAX_BACKOFF_MILLIS));
+                continue;
+            }
 
-                    return Err(AppError::Internal(anyhow::anyhow!(
-                        "Solana RPC {method} returned an unreadable response after {RPC_MAX_ATTEMPTS} attempts: {error}"
-                    )));
-                }
+            if let Some(error) = round_last_error {
+                return Err(error);
             }
         }
 
@@ -628,6 +636,80 @@ impl SolanaRpcClient {
             "Solana RPC {method} exhausted all retry attempts"
         )))
     }
+
+    fn rpc_endpoints(&self) -> Vec<RpcEndpoint<'_>> {
+        let mut endpoints = vec![RpcEndpoint {
+            rpc_url: self.rpc_url.as_str(),
+        }];
+
+        if let Some(fallback_rpc_url) = self.fallback_rpc_url.as_deref() {
+            endpoints.push(RpcEndpoint {
+                rpc_url: fallback_rpc_url,
+            });
+        }
+
+        endpoints
+    }
+
+    async fn post_to_endpoint<T: for<'de> Deserialize<'de>>(
+        &self,
+        rpc_url: &str,
+        payload: &serde_json::Value,
+    ) -> Result<T, EndpointPostError> {
+        let response = self
+            .http
+            .post(rpc_url)
+            .json(payload)
+            .send()
+            .await
+            .map_err(|error| EndpointPostError::Retryable(error.to_string()))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let retry_after = retry_after_from_headers(response.headers())
+                .unwrap_or_else(|| default_retry_after_for_status(status.as_u16(), 1));
+            let response_body = response.text().await.unwrap_or_default();
+
+            if status.as_u16() == 429 {
+                return Err(EndpointPostError::RateLimited {
+                    retry_after,
+                    response_body,
+                });
+            }
+
+            if should_retry_http_status(status.as_u16()) {
+                return Err(EndpointPostError::Retryable(format!(
+                    "HTTP {}: {}",
+                    status.as_u16(),
+                    truncate_for_log(&response_body)
+                )));
+            }
+
+            return Err(EndpointPostError::Fatal(AppError::Internal(anyhow::anyhow!(
+                "Solana RPC failed with HTTP {}: {}",
+                status.as_u16(),
+                truncate_for_log(&response_body)
+            ))));
+        }
+
+        response
+            .json::<T>()
+            .await
+            .map_err(|error| EndpointPostError::Retryable(error.to_string()))
+    }
+}
+
+struct RpcEndpoint<'a> {
+    rpc_url: &'a str,
+}
+
+enum EndpointPostError {
+    RateLimited {
+        retry_after: Duration,
+        response_body: String,
+    },
+    Retryable(String),
+    Fatal(AppError),
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -946,4 +1028,23 @@ fn derive_websocket_url(rpc_url: &str) -> Option<String> {
         .strip_prefix("https://")
         .map(|rest| format!("wss://{rest}"))
         .or_else(|| rpc_url.strip_prefix("http://").map(|rest| format!("ws://{rest}")))
+}
+
+fn redact_rpc_url(value: &str) -> String {
+    let Some((base, query)) = value.split_once('?') else {
+        return value.to_string();
+    };
+
+    let redacted_query = query
+        .split('&')
+        .map(|pair| match pair.split_once('=') {
+            Some((key, _)) if key.eq_ignore_ascii_case("api-key") => {
+                format!("{key}=REDACTED")
+            }
+            _ => pair.to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join("&");
+
+    format!("{base}?{redacted_query}")
 }
