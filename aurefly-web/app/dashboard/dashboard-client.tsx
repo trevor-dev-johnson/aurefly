@@ -177,6 +177,7 @@ export function DashboardClient() {
   const [submitting, setSubmitting] = useState(false);
   const [cancellingInvoiceId, setCancellingInvoiceId] = useState("");
   const [notice, setNotice] = useState<Notice>(null);
+  const [createError, setCreateError] = useState("");
   const [activeSection, setActiveSection] =
     useState<(typeof SECTION_IDS)[number]>("overview");
 
@@ -420,6 +421,7 @@ export function DashboardClient() {
   function openModal() {
     setCreateRequestId(createClientRequestId());
     setCreateState(initialInvoiceState);
+    setCreateError("");
     setModalOpen(true);
   }
 
@@ -430,10 +432,12 @@ export function DashboardClient() {
 
     setModalOpen(false);
     setCreateState(initialInvoiceState);
+    setCreateError("");
   }
 
   function updateField<K extends keyof CreateInvoiceState>(key: K, value: CreateInvoiceState[K]) {
     setCreateState((current) => ({ ...current, [key]: value }));
+    setCreateError("");
     if (!submitting) {
       setCreateRequestId("");
     }
@@ -447,6 +451,7 @@ export function DashboardClient() {
 
     setSubmitting(true);
     setNotice(null);
+    setCreateError("");
 
     try {
       const clientRequestId = createRequestId || createClientRequestId();
@@ -465,6 +470,7 @@ export function DashboardClient() {
       setModalOpen(false);
       setCreateState(initialInvoiceState);
       setCreateRequestId("");
+      setCreateError("");
 
       const invoicePath = `/pay/${invoice.id}`;
       const copied = await copyInvoiceUrl(invoicePath);
@@ -479,10 +485,7 @@ export function DashboardClient() {
         return;
       }
 
-      setNotice({
-        type: "error",
-        text: error instanceof Error ? error.message : "Unable to create invoice.",
-      });
+      setCreateError(error instanceof Error ? error.message : "Unable to create invoice.");
     } finally {
       setSubmitting(false);
     }
@@ -1041,6 +1044,12 @@ export function DashboardClient() {
                   Customers pay this amount and settlement goes directly to your wallet.
                 </p>
               </div>
+
+              {createError ? (
+                <div className="rounded-[1.3rem] border border-rose-400/18 bg-rose-400/8 px-4 py-3 text-sm leading-6 text-rose-100">
+                  {createError}
+                </div>
+              ) : null}
               </div>
 
               <div className="grid gap-3 border-t border-white/6 px-5 py-4 sm:grid-cols-2 sm:px-6 sm:py-5">

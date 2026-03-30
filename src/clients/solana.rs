@@ -126,34 +126,48 @@ impl SolanaRpcClient {
     ) -> AppResult<ResolvedUsdcSettlement> {
         let payout_address = payout_address.trim();
         parse_pubkey(payout_address, "payout_address")?;
+        let derived = UsdcSettlement::from_wallet_pubkey(payout_address)?;
 
-        if let Some(token_account) = self.get_token_account_info(payout_address).await? {
-            if token_account.mint != MAINNET_USDC_MINT {
-                return Err(AppError::Validation(
-                    "payout_address must be a mainnet wallet address or mainnet USDC account".to_string(),
-                ));
+        match self.get_token_account_info(payout_address).await {
+            Ok(Some(token_account)) => {
+                if token_account.mint != MAINNET_USDC_MINT {
+                    return Err(AppError::Validation(
+                        "payout_address must be a mainnet wallet address or mainnet USDC account".to_string(),
+                    ));
+                }
+
+                let token_owner_settlement = UsdcSettlement::from_wallet_pubkey(&token_account.owner)?;
+                if payout_address != token_owner_settlement.usdc_ata {
+                    return Err(AppError::Validation(
+                        "payout_address must be the wallet address or its mainnet USDC associated token account. Non-ATA token accounts are not supported.".to_string(),
+                    ));
+                }
+
+                Ok(ResolvedUsdcSettlement {
+                    wallet_pubkey: token_account.owner,
+                    usdc_ata: token_owner_settlement.usdc_ata,
+                    usdc_mint: token_owner_settlement.usdc_mint,
+                })
             }
-
-            let derived = UsdcSettlement::from_wallet_pubkey(&token_account.owner)?;
-            if payout_address != derived.usdc_ata {
-                return Err(AppError::Validation(
-                    "payout_address must be the wallet address or its mainnet USDC associated token account. Non-ATA token accounts are not supported.".to_string(),
-                ));
-            }
-
-            return Ok(ResolvedUsdcSettlement {
-                wallet_pubkey: token_account.owner,
+            Ok(None) => Ok(ResolvedUsdcSettlement {
+                wallet_pubkey: derived.wallet_pubkey,
                 usdc_ata: derived.usdc_ata,
                 usdc_mint: derived.usdc_mint,
-            });
-        }
+            }),
+            Err(error) => {
+                tracing::warn!(
+                    payout_address = payout_address,
+                    error = ?error,
+                    "failed to inspect payout address via RPC; falling back to wallet-derived USDC ATA"
+                );
 
-        let derived = UsdcSettlement::from_wallet_pubkey(payout_address)?;
-        Ok(ResolvedUsdcSettlement {
-            wallet_pubkey: derived.wallet_pubkey,
-            usdc_ata: derived.usdc_ata,
-            usdc_mint: derived.usdc_mint,
-        })
+                Ok(ResolvedUsdcSettlement {
+                    wallet_pubkey: derived.wallet_pubkey,
+                    usdc_ata: derived.usdc_ata,
+                    usdc_mint: derived.usdc_mint,
+                })
+            }
+        }
     }
 
     pub async fn ensure_associated_token_account(
