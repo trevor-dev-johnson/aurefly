@@ -27,7 +27,7 @@ pub fn require_bearer_token(headers: &HeaderMap) -> AppResult<String> {
 pub async fn require_user(headers: &HeaderMap, state: &AppState) -> AppResult<User> {
     let token = require_bearer_token(headers)?;
 
-    auth::user_for_token(&state.pool, &token)
+    auth::user_for_token(&state.pool, &state.supabase_auth, &token)
         .await?
         .ok_or_else(|| AppError::Unauthorized("invalid or expired auth token".to_string()))
 }

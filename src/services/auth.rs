@@ -2,153 +2,117 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
-    error::{AppError, AppResult},
+    clients::supabase::{SupabaseAuthClient, SupabaseIdentity},
+    error::AppResult,
     models::user::User,
 };
 
-const SESSION_TTL_SQL: &str = "NOW() + INTERVAL '24 hours'";
-
-pub struct RegisterUser {
-    pub email: String,
-    pub name: Option<String>,
-    pub password: String,
-}
-
-pub struct SignInUser {
-    pub email: String,
-    pub password: String,
-}
-
-pub struct AuthSession {
-    pub token: String,
-    pub user: User,
-}
-
-pub async fn register(pool: &PgPool, input: RegisterUser) -> AppResult<AuthSession> {
-    let email = normalize_email(&input.email)?;
-    let name = input.name.and_then(clean_optional);
-    validate_password(&input.password)?;
-
-    let user = sqlx::query_as::<_, User>(
-        r#"
-        INSERT INTO users (email, name, password_hash)
-        VALUES ($1, $2, crypt($3, gen_salt('bf', 12)))
-        RETURNING id, email, name, created_at
-        "#,
-    )
-    .bind(email)
-    .bind(name)
-    .bind(input.password)
-    .fetch_one(pool)
-    .await?;
-
-    issue_session(pool, user).await
-}
-
-pub async fn sign_in(pool: &PgPool, input: SignInUser) -> AppResult<AuthSession> {
-    let email = normalize_email(&input.email)?;
-    validate_password(&input.password)?;
-
-    let user = sqlx::query_as::<_, User>(
-        r#"
-        SELECT id, email, name, created_at
-        FROM users
-        WHERE email = $1
-          AND password_hash IS NOT NULL
-          AND password_hash = crypt($2, password_hash)
-        "#,
-    )
-    .bind(email)
-    .bind(input.password)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::Unauthorized("invalid email or password".to_string()))?;
-
-    issue_session(pool, user).await
-}
-
-pub async fn user_for_token(pool: &PgPool, token: &str) -> AppResult<Option<User>> {
-    let token = token.trim();
-    if token.is_empty() {
+pub async fn user_for_token(
+    pool: &PgPool,
+    supabase_auth: &SupabaseAuthClient,
+    token: &str,
+) -> AppResult<Option<User>> {
+    let Some(identity) = supabase_auth.get_user_for_token(token).await? else {
         return Ok(None);
+    };
+
+    let user = sync_user_from_identity(pool, &identity).await?;
+    Ok(Some(user))
+}
+
+async fn sync_user_from_identity(pool: &PgPool, identity: &SupabaseIdentity) -> AppResult<User> {
+    if let Some(user) = find_by_supabase_user_id(pool, identity.supabase_user_id).await? {
+        return update_existing_user(
+            pool,
+            user.id,
+            identity.supabase_user_id,
+            &identity.email,
+            identity.name.as_deref(),
+        )
+        .await;
+    }
+
+    if let Some(user) = find_by_email(pool, &identity.email).await? {
+        return update_existing_user(
+            pool,
+            user.id,
+            identity.supabase_user_id,
+            &identity.email,
+            identity.name.as_deref(),
+        )
+        .await;
     }
 
     let user = sqlx::query_as::<_, User>(
         r#"
-        SELECT users.id, users.email, users.name, users.created_at
-        FROM auth_sessions
-        INNER JOIN users ON users.id = auth_sessions.user_id
-        WHERE auth_sessions.token_hash = encode(digest($1, 'sha256'), 'hex')
-          AND auth_sessions.expires_at > NOW()
+        INSERT INTO users (id, supabase_user_id, email, name)
+        VALUES ($1, $1, $2, $3)
+        RETURNING id, email, name, created_at
         "#,
     )
-    .bind(token)
+    .bind(identity.supabase_user_id)
+    .bind(&identity.email)
+    .bind(&identity.name)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(user)
+}
+
+async fn find_by_supabase_user_id(pool: &PgPool, supabase_user_id: Uuid) -> AppResult<Option<User>> {
+    let user = sqlx::query_as::<_, User>(
+        r#"
+        SELECT id, email, name, created_at
+        FROM users
+        WHERE supabase_user_id = $1
+        "#,
+    )
+    .bind(supabase_user_id)
     .fetch_optional(pool)
     .await?;
 
     Ok(user)
 }
 
-pub async fn revoke_token(pool: &PgPool, token: &str) -> AppResult<bool> {
-    let token = token.trim();
-    if token.is_empty() {
-        return Ok(false);
-    }
-
-    let deleted = sqlx::query(
+async fn find_by_email(pool: &PgPool, email: &str) -> AppResult<Option<User>> {
+    let user = sqlx::query_as::<_, User>(
         r#"
-        DELETE FROM auth_sessions
-        WHERE token_hash = encode(digest($1, 'sha256'), 'hex')
+        SELECT id, email, name, created_at
+        FROM users
+        WHERE email = $1
         "#,
     )
-    .bind(token)
-    .execute(pool)
+    .bind(email)
+    .fetch_optional(pool)
     .await?;
 
-    Ok(deleted.rows_affected() > 0)
+    Ok(user)
 }
 
-async fn issue_session(pool: &PgPool, user: User) -> AppResult<AuthSession> {
-    let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-
-    sqlx::query(&format!(
+async fn update_existing_user(
+    pool: &PgPool,
+    user_id: Uuid,
+    supabase_user_id: Uuid,
+    email: &str,
+    name: Option<&str>,
+) -> AppResult<User> {
+    let user = sqlx::query_as::<_, User>(
         r#"
-        INSERT INTO auth_sessions (user_id, token_hash, expires_at)
-        VALUES ($1, encode(digest($2, 'sha256'), 'hex'), {SESSION_TTL_SQL})
-        "#
-    ))
-    .bind(user.id)
-    .bind(&token)
-    .execute(pool)
+        UPDATE users
+        SET
+            supabase_user_id = COALESCE(supabase_user_id, $2),
+            email = $3,
+            name = COALESCE($4, name)
+        WHERE id = $1
+        RETURNING id, email, name, created_at
+        "#,
+    )
+    .bind(user_id)
+    .bind(supabase_user_id)
+    .bind(email)
+    .bind(name)
+    .fetch_one(pool)
     .await?;
 
-    Ok(AuthSession { token, user })
-}
-
-fn normalize_email(value: &str) -> AppResult<String> {
-    let email = value.trim().to_lowercase();
-    if email.is_empty() {
-        return Err(AppError::Validation("email is required".to_string()));
-    }
-
-    Ok(email)
-}
-
-fn validate_password(value: &str) -> AppResult<()> {
-    if value.trim().len() < 8 {
-        return Err(AppError::Validation(
-            "password must be at least 8 characters".to_string(),
-        ));
-    }
-
-    Ok(())
-}
-
-fn clean_optional(value: String) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
+    Ok(user)
 }

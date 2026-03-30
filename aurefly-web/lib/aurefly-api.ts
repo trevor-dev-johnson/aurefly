@@ -30,11 +30,6 @@ export type AuthenticatedUser = {
   email: string;
 };
 
-export type AuthResponse = {
-  token: string;
-  user: AuthenticatedUser;
-};
-
 export type CreateInvoicePayload = {
   client_request_id: string;
   amount_usdc: string;
@@ -55,12 +50,10 @@ export class ApiError extends Error {
 
 const DEFAULT_API_URL = "http://localhost:8080";
 const API_PREFIX = "/api/v1";
-const TOKEN_KEY = "aurefly_auth_token";
 
 type ApiFetchOptions = {
   method?: string;
   body?: string;
-  token?: string;
   headers?: HeadersInit;
 };
 
@@ -73,10 +66,6 @@ async function apiFetch<T>(path: string, options: ApiFetchOptions = {}) {
 
   if (options.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
-  }
-
-  if (options.token) {
-    headers.set("Authorization", `Bearer ${options.token}`);
   }
 
   const response = await fetch(`${getApiBase()}${API_PREFIX}${path}`, {
@@ -102,25 +91,39 @@ async function apiFetch<T>(path: string, options: ApiFetchOptions = {}) {
   return data as T;
 }
 
-export async function fetchPublicInvoice(invoiceId: string, observePayment = false) {
-  const url = new URL(`/api/v1/public/invoices/${invoiceId}`, getApiBase());
-  if (observePayment) {
-    url.searchParams.set("observe_payment", "true");
+async function appFetch<T>(path: string, options: ApiFetchOptions = {}) {
+  const headers = new Headers(options.headers || {});
+
+  if (options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(url.toString(), {
+  const response = await fetch(path, {
+    method: options.method || "GET",
+    headers,
+    body: options.body,
     cache: "no-store",
+    credentials: "same-origin",
   });
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(
-      typeof data?.error === "string" ? data.error : "Unable to load invoice.",
+    throw new ApiError(
+      typeof data?.error === "string" ? data.error : "Request failed.",
+      response.status,
     );
   }
 
-  return data as PublicInvoice;
+  return data as T;
+}
+
+export async function fetchPublicInvoice(invoiceId: string) {
+  return apiFetch<PublicInvoice>(`/public/invoices/${invoiceId}`);
 }
 
 export function formatMoney(value: string | number | null | undefined) {
@@ -142,71 +145,24 @@ export function shortAddress(value: string | null | undefined) {
   return `${value.slice(0, 4)}...${value.slice(-5)}`;
 }
 
-export function getStoredToken() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return window.localStorage.getItem(TOKEN_KEY) || "";
+export async function fetchCurrentUser() {
+  return appFetch<AuthenticatedUser>("/api/me");
 }
 
-export function setStoredToken(token: string) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(TOKEN_KEY, token);
+export async function fetchInvoices() {
+  return appFetch<MerchantInvoice[]>("/api/invoices");
 }
 
-export function clearStoredToken() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.removeItem(TOKEN_KEY);
-}
-
-export async function signIn(email: string, password: string) {
-  return apiFetch<AuthResponse>("/auth/sign-in", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
-}
-
-export async function signUp(email: string, password: string) {
-  return apiFetch<AuthResponse>("/auth/sign-up", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
-}
-
-export async function signOut(token: string) {
-  return apiFetch<void>("/auth/logout", {
-    method: "POST",
-    token,
-  });
-}
-
-export async function fetchMe(token: string) {
-  return apiFetch<AuthenticatedUser>("/auth/me", { token });
-}
-
-export async function fetchInvoices(token: string) {
-  return apiFetch<MerchantInvoice[]>("/me/invoices", { token });
-}
-
-export async function createInvoice(payload: CreateInvoicePayload, token: string) {
-  return apiFetch<MerchantInvoice>("/me/invoices", {
+export async function createInvoice(payload: CreateInvoicePayload) {
+  return appFetch<MerchantInvoice>("/api/invoices", {
     method: "POST",
     body: JSON.stringify(payload),
-    token,
   });
 }
 
-export async function cancelInvoice(invoiceId: string, token: string) {
-  return apiFetch<MerchantInvoice>(`/me/invoices/${invoiceId}/cancel`, {
+export async function cancelInvoice(invoiceId: string) {
+  return appFetch<MerchantInvoice>(`/api/invoices/${invoiceId}/cancel`, {
     method: "POST",
-    token,
   });
 }
 

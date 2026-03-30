@@ -19,8 +19,8 @@ use tokio::net::TcpListener;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use crate::{
-    clients::solana::SolanaRpcClient, config::Config, detector::PaymentDetectorConfig,
-    rate_limit::AuthRateLimiter,
+    clients::{solana::SolanaRpcClient, supabase::SupabaseAuthClient},
+    config::Config, detector::PaymentDetectorConfig,
     services::invoices,
     state::AppState,
 };
@@ -67,6 +67,15 @@ async fn main() -> anyhow::Result<()> {
         fallback_rpc_url = ?redacted_fallback_rpc_url,
         "using Solana RPC endpoint"
     );
+    let supabase_auth = SupabaseAuthClient::new(
+        config.supabase_url.clone(),
+        config.supabase_publishable_key.clone(),
+    );
+    tracing::info!(
+        configured = supabase_auth.is_configured(),
+        supabase_url = ?supabase_auth.redacted_supabase_url(),
+        "using Supabase auth provider"
+    );
 
     let detector_poll_interval = Duration::from_secs(config.payment_detector_poll_interval_secs);
     let detector_signature_limit = config.payment_detector_signature_limit;
@@ -95,11 +104,7 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    let auth_rate_limiter = AuthRateLimiter::new(
-        config.auth_rate_limit_max_requests,
-        Duration::from_secs(config.auth_rate_limit_window_secs),
-    );
-    let state = AppState::new(pool, solana, auth_rate_limiter);
+    let state = AppState::new(pool, solana, supabase_auth);
     let app = app::build(state, config.allowed_origins.clone());
     let listener = TcpListener::bind(config.socket_addr())
         .await

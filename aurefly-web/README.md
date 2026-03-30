@@ -2,7 +2,7 @@
 
 This is the Next.js frontend for Aurefly.
 
-It talks to the existing Rust API through `NEXT_PUBLIC_API_URL`.
+It talks to the existing Rust API through `NEXT_PUBLIC_API_URL` and uses Supabase Auth for session handling.
 
 ## Local Development
 
@@ -20,6 +20,8 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Env
 
 ```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=
 NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
 

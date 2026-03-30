@@ -4,12 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import {
-  getStoredToken,
-  setStoredToken,
-  signIn,
-  signUp,
-} from "@/lib/aurefly-api";
+import { createClient } from "@/lib/supabase/browser";
 
 type AuthMode = "sign-in" | "sign-up";
 
@@ -30,9 +25,28 @@ export function AuthClient({ initialMode }: AuthClientProps) {
   const mode = getMode(initialMode || null);
 
   useEffect(() => {
-    if (getStoredToken()) {
-      router.replace("/dashboard");
+    let active = true;
+
+    async function checkSession() {
+      try {
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (active && session) {
+          router.replace("/dashboard");
+        }
+      } catch {
+        // Render the form and surface the configuration issue on submit instead.
+      }
     }
+
+    void checkSession();
+
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   const copy = useMemo(() => {
@@ -63,13 +77,37 @@ export function AuthClient({ initialMode }: AuthClientProps) {
     setStatus(mode === "sign-in" ? "Signing in..." : "Creating account...");
 
     try {
-      const response =
-        mode === "sign-in"
-          ? await signIn(email.trim(), password)
-          : await signUp(email.trim(), password);
+      const supabase = createClient();
+      if (mode === "sign-in") {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
 
-      setStoredToken(response.token);
-      router.replace("/dashboard");
+        if (error) {
+          throw error;
+        }
+
+        router.replace("/dashboard");
+        router.refresh();
+      } else {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        if (data.session) {
+          router.replace("/dashboard");
+          router.refresh();
+        } else {
+          setStatus("Check your email to confirm your account, then sign in.");
+          setSubmitting(false);
+        }
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to continue.");
       setSubmitting(false);

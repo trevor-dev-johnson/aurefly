@@ -7,18 +7,15 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ApiError,
   cancelInvoice,
-  clearStoredToken,
   createClientRequestId,
   createInvoice,
   fetchInvoices,
-  fetchMe,
+  fetchCurrentUser,
   formatMoney,
-  getStoredToken,
-  setStoredToken,
-  signOut,
   type AuthenticatedUser,
   type MerchantInvoice,
 } from "@/lib/aurefly-api";
+import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const POLL_INTERVAL_MS = 8_000;
 const SECTION_IDS = ["overview", "invoices", "wallet"] as const;
@@ -170,7 +167,6 @@ async function copyInvoiceUrl(invoicePath: string) {
 
 export function DashboardClient() {
   const router = useRouter();
-  const [token, setToken] = useState("");
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [invoices, setInvoices] = useState<MerchantInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -185,21 +181,6 @@ export function DashboardClient() {
     useState<(typeof SECTION_IDS)[number]>("overview");
 
   useEffect(() => {
-    const storedToken = getStoredToken();
-    if (!storedToken) {
-      router.replace("/auth?mode=sign-in");
-      return;
-    }
-
-    setStoredToken(storedToken);
-    setToken(storedToken);
-  }, [router]);
-
-  useEffect(() => {
-    if (!token) {
-      return;
-    }
-
     let cancelled = false;
 
     async function bootstrap() {
@@ -207,8 +188,8 @@ export function DashboardClient() {
 
       try {
         const [nextUser, nextInvoices] = await Promise.all([
-          fetchMe(token),
-          fetchInvoices(token),
+          fetchCurrentUser(),
+          fetchInvoices(),
         ]);
 
         if (cancelled) {
@@ -224,7 +205,6 @@ export function DashboardClient() {
         }
 
         if (error instanceof ApiError && error.status === 401) {
-          clearStoredToken();
           router.replace("/auth?mode=sign-in");
           return;
         }
@@ -245,27 +225,26 @@ export function DashboardClient() {
     return () => {
       cancelled = true;
     };
-  }, [router, token]);
+  }, [router]);
 
   useEffect(() => {
-    if (!token || !user) {
+    if (!user) {
       return;
     }
 
     const interval = window.setInterval(async () => {
       try {
-        const nextInvoices = await fetchInvoices(token);
+        const nextInvoices = await fetchInvoices();
         setInvoices(nextInvoices);
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
-          clearStoredToken();
           router.replace("/auth?mode=sign-in");
         }
       }
     }, POLL_INTERVAL_MS);
 
     return () => window.clearInterval(interval);
-  }, [router, token, user]);
+  }, [router, user]);
 
   useEffect(() => {
     if (!modalOpen) {
@@ -423,19 +402,14 @@ export function DashboardClient() {
   const summaryAmount = useMemo(() => parseAmount(createState.amount_usdc), [createState.amount_usdc]);
 
   async function refreshInvoices() {
-    if (!token) {
-      return;
-    }
-
     setRefreshing(true);
 
     try {
-      const nextInvoices = await fetchInvoices(token);
+      const nextInvoices = await fetchInvoices();
       setInvoices(nextInvoices);
       setNotice(null);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
-        clearStoredToken();
         router.replace("/auth?mode=sign-in");
         return;
       }
@@ -473,7 +447,7 @@ export function DashboardClient() {
 
   async function handleCreateInvoice(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!token || submitting) {
+    if (submitting) {
       return;
     }
 
@@ -490,10 +464,9 @@ export function DashboardClient() {
           client_email: createState.client_email.trim(),
           payout_address: createState.payout_address.trim(),
         },
-        token,
       );
 
-      const nextInvoices = await fetchInvoices(token);
+      const nextInvoices = await fetchInvoices();
       setInvoices(nextInvoices);
       setModalOpen(false);
       setCreateState(initialInvoiceState);
@@ -508,7 +481,6 @@ export function DashboardClient() {
       });
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
-        clearStoredToken();
         router.replace("/auth?mode=sign-in");
         return;
       }
@@ -523,30 +495,23 @@ export function DashboardClient() {
   }
 
   async function handleSignOut() {
-    if (!token) {
-      clearStoredToken();
-      router.replace("/");
+    try {
+      const supabase = createSupabaseBrowserClient();
+      await supabase.auth.signOut();
+    } catch (error) {
+      setNotice({
+        type: "error",
+        text: error instanceof Error ? error.message : "Unable to sign out.",
+      });
       return;
     }
 
-    try {
-      await signOut(token);
-    } catch (error) {
-      if (!(error instanceof ApiError) || error.status !== 401) {
-        setNotice({
-          type: "error",
-          text: error instanceof Error ? error.message : "Unable to sign out.",
-        });
-        return;
-      }
-    }
-
-    clearStoredToken();
     router.replace("/");
+    router.refresh();
   }
 
   async function handleCancelInvoice(invoiceId: string) {
-    if (!token || cancellingInvoiceId || !window.confirm("Cancel this invoice?")) {
+    if (cancellingInvoiceId || !window.confirm("Cancel this invoice?")) {
       return;
     }
 
@@ -554,8 +519,8 @@ export function DashboardClient() {
     setNotice(null);
 
     try {
-      const cancelledInvoice = await cancelInvoice(invoiceId, token);
-      const nextInvoices = await fetchInvoices(token);
+      const cancelledInvoice = await cancelInvoice(invoiceId);
+      const nextInvoices = await fetchInvoices();
       setInvoices(nextInvoices);
       setNotice({
         type: "success",
@@ -563,7 +528,6 @@ export function DashboardClient() {
       });
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
-        clearStoredToken();
         router.replace("/auth?mode=sign-in");
         return;
       }

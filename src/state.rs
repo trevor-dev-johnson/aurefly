@@ -1,24 +1,24 @@
 use sqlx::PgPool;
 
-use crate::{clients::solana::SolanaRpcClient, rate_limit::AuthRateLimiter};
+use crate::clients::{solana::SolanaRpcClient, supabase::SupabaseAuthClient};
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
     pub solana: SolanaRpcClient,
-    pub auth_rate_limiter: AuthRateLimiter,
+    pub supabase_auth: SupabaseAuthClient,
 }
 
 impl AppState {
     pub fn new(
         pool: PgPool,
         solana: SolanaRpcClient,
-        auth_rate_limiter: AuthRateLimiter,
+        supabase_auth: SupabaseAuthClient,
     ) -> Self {
         Self {
             pool,
             solana,
-            auth_rate_limiter,
+            supabase_auth,
         }
     }
 }

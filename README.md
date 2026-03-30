@@ -77,6 +77,7 @@ The Rust service is API-only. It does not serve the website.
 ## Stack
 
 - Next.js App Router frontend
+- Supabase Auth for email/password sessions
 - Rust + Axum backend API
 - SQLx + Postgres
 - Solana mainnet
@@ -116,6 +117,8 @@ Create `aurefly-web/.env.local`:
 
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:8080
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=
 ```
 
 There is also an example file at `aurefly-web/.env.example`.
@@ -148,6 +151,8 @@ Minimum backend env:
 DATABASE_URL=<Railway Postgres connection string>
 PORT=8080
 ALLOWED_ORIGINS=https://aurefly.com,https://www.aurefly.com
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_PUBLISHABLE_KEY=<your-supabase-publishable-key>
 HELIUS_API_KEY=<your-helius-key>
 SOLANA_FALLBACK_RPC_URL=<optional QuickNode HTTPS URL>
 SOLANA_FALLBACK_WS_URL=<optional QuickNode WSS URL>
@@ -162,12 +167,11 @@ RUST_LOG=info
 Public endpoints:
 
 - `GET /api/v1/health`
-- `POST /api/v1/auth/sign-up`
-- `POST /api/v1/auth/sign-in`
-- `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
 - `GET /api/v1/public/invoices/{invoice_id}`
 - `GET /api/v1/public/invoices/{invoice_id}/qr.svg`
+
+Authentication is handled in the Next.js app with Supabase Auth. The Rust API only trusts bearer tokens issued by Supabase for protected routes.
 
 Authenticated invoice management:
 

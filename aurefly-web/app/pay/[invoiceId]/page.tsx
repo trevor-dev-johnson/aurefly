@@ -17,7 +17,7 @@ export default async function PayPage({ params }: PayPageProps) {
   let message = "Unable to load invoice.";
 
   try {
-    invoice = await fetchPublicInvoice(invoiceId, false);
+    invoice = await fetchPublicInvoice(invoiceId);
   } catch (error) {
     message = error instanceof Error ? error.message : "Unable to load invoice.";
   }

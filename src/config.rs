@@ -11,6 +11,8 @@ pub struct Config {
     pub host: IpAddr,
     pub port: u16,
     pub allowed_origins: Vec<String>,
+    pub supabase_url: Option<String>,
+    pub supabase_publishable_key: Option<String>,
     pub solana_rpc_url: String,
     pub solana_fallback_rpc_url: Option<String>,
     pub solana_fallback_ws_url: Option<String>,
@@ -46,6 +48,8 @@ impl Config {
             .filter(|value| !value.is_empty())
             .map(ToString::to_string)
             .collect();
+        let supabase_url = optional_env("SUPABASE_URL");
+        let supabase_publishable_key = optional_env("SUPABASE_PUBLISHABLE_KEY");
         let helius_api_key = env::var("HELIUS_API_KEY").ok().and_then(|value| {
             let trimmed = value.trim();
             if trimmed.is_empty() {
@@ -110,6 +114,8 @@ impl Config {
             host,
             port,
             allowed_origins,
+            supabase_url,
+            supabase_publishable_key,
             solana_rpc_url,
             solana_fallback_rpc_url,
             solana_fallback_ws_url,
