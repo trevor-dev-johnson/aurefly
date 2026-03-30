@@ -252,20 +252,14 @@ export function DashboardClient() {
     }
 
     const previousBodyOverflow = document.body.style.overflow;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
     const previousBodyOverscroll = document.body.style.overscrollBehavior;
-    const previousHtmlOverscroll = document.documentElement.style.overscrollBehavior;
 
     document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
     document.body.style.overscrollBehavior = "none";
-    document.documentElement.style.overscrollBehavior = "none";
 
     return () => {
       document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousHtmlOverflow;
       document.body.style.overscrollBehavior = previousBodyOverscroll;
-      document.documentElement.style.overscrollBehavior = previousHtmlOverscroll;
     };
   }, [modalOpen]);
 
@@ -553,11 +547,11 @@ export function DashboardClient() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6">
+    <main className="relative min-h-screen overflow-x-hidden overflow-y-visible px-4 py-4 sm:px-6 sm:py-6">
       <div className="pointer-events-none absolute inset-x-0 top-[-10rem] mx-auto h-[28rem] w-[min(92vw,64rem)] rounded-full bg-[radial-gradient(circle,rgba(90,141,255,0.16),rgba(77,223,143,0.08)_44%,transparent_74%)] blur-3xl" />
       <div className="pointer-events-none absolute bottom-[-10rem] left-1/2 h-[24rem] w-[24rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(248,211,111,0.12),transparent_72%)] blur-3xl" />
 
-      <div className="relative mx-auto grid max-w-7xl gap-4 lg:min-h-[calc(100vh-2rem)] lg:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="relative mx-auto grid max-w-7xl items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside className="rounded-[2rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
           <div className="flex items-center gap-3">
             <Image
@@ -760,17 +754,13 @@ export function DashboardClient() {
                 <div className="mt-5 grid gap-3">
                   {invoices.map((invoice) => {
                     const paidAmount = Number(invoice.paid_amount_usdc || 0);
-                    const feeAmount = Number(invoice.platform_fee_usdc || 0);
-                    const netAmount = Number(invoice.net_amount_usdc || 0);
                     const paymentLabel =
                       invoice.status === "cancelled"
                         ? "Cancelled"
                         : invoice.status === "expired"
                           ? "Expired"
                           : paidAmount > 0
-                            ? feeAmount > 0
-                              ? `${formatMoney(paidAmount)} paid · ${formatMoney(netAmount)} after fee`
-                              : `${formatMoney(paidAmount)} paid`
+                            ? `${formatMoney(paidAmount)} paid`
                             : "Awaiting payment";
 
                     return (
@@ -957,19 +947,19 @@ export function DashboardClient() {
       </div>
 
       {modalOpen ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-[#03070d]/88 px-4 py-4 backdrop-blur-md sm:px-6 sm:py-6">
-          <div className="flex min-h-full items-start justify-center sm:items-center">
-            <section className="flex w-full max-w-xl flex-col overflow-hidden rounded-[2rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.02))] shadow-[0_34px_100px_rgba(0,0,0,0.38)] backdrop-blur-2xl max-h-[calc(100svh-2rem)] sm:max-h-[min(52rem,calc(100svh-3rem))]">
-            <div className="flex items-start justify-between gap-4 border-b border-white/6 px-5 pb-5 pt-5 sm:px-7 sm:pb-6 sm:pt-6">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-[#03070d]/88 px-4 py-3 backdrop-blur-md sm:px-6 sm:py-4">
+          <div className="flex min-h-full items-center justify-center">
+            <section className="flex w-full max-w-lg flex-col overflow-hidden rounded-[2rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.02))] shadow-[0_34px_100px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-white/6 px-5 pb-4 pt-5 sm:px-6 sm:pb-5 sm:pt-6">
               <div>
                 <div className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
                   Create invoice
                 </div>
-                <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white">
+                <h2 className="mt-2 text-[1.65rem] font-semibold tracking-[-0.04em] text-white">
                   New invoice
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-slate-300">
-                  Enter the amount, add context, and lock settlement to your own Solana wallet.
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  Set the amount and send payout directly to your wallet.
                 </p>
               </div>
               <button
@@ -981,11 +971,11 @@ export function DashboardClient() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateInvoice} className="flex min-h-0 flex-1 flex-col">
-              <div className="grid min-h-0 flex-1 gap-5 overflow-y-auto px-5 py-5 sm:px-7 sm:py-6">
+            <form onSubmit={handleCreateInvoice} className="flex flex-1 flex-col">
+              <div className="grid gap-4 px-5 py-4 sm:px-6 sm:py-5">
               <label className="grid gap-2 text-sm text-slate-300">
                 <span>Amount (USDC)</span>
-                <div className="flex h-14 items-center rounded-[1.35rem] border border-white/8 bg-[#0d1520]/92 px-4">
+                <div className="flex h-[3.25rem] items-center rounded-[1.35rem] border border-white/8 bg-[#0d1520]/92 px-4">
                   <span className="pr-3 text-slate-500">$</span>
                   <input
                     type="number"
@@ -1009,7 +999,7 @@ export function DashboardClient() {
                   type="text"
                   value={createState.description}
                   onChange={(event) => updateField("description", event.target.value)}
-                  className="h-12 rounded-2xl border border-white/8 bg-[#0d1520]/92 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-sky-300/40 focus:bg-[#111b28]"
+                  className="h-11 rounded-2xl border border-white/8 bg-[#0d1520]/92 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-sky-300/40 focus:bg-[#111b28]"
                   placeholder="e.g. Brand design project — Phase 1"
                 />
               </label>
@@ -1020,7 +1010,7 @@ export function DashboardClient() {
                   type="email"
                   value={createState.client_email}
                   onChange={(event) => updateField("client_email", event.target.value)}
-                  className="h-12 rounded-2xl border border-white/8 bg-[#0d1520]/92 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-sky-300/40 focus:bg-[#111b28]"
+                  className="h-11 rounded-2xl border border-white/8 bg-[#0d1520]/92 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-sky-300/40 focus:bg-[#111b28]"
                   placeholder="client@example.com"
                 />
               </label>
@@ -1032,33 +1022,28 @@ export function DashboardClient() {
                   required
                   value={createState.payout_address}
                   onChange={(event) => updateField("payout_address", event.target.value)}
-                  className="h-12 rounded-2xl border border-white/8 bg-[#0d1520]/92 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-sky-300/40 focus:bg-[#111b28]"
+                  className="h-11 rounded-2xl border border-white/8 bg-[#0d1520]/92 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-sky-300/40 focus:bg-[#111b28]"
                   placeholder="Solana wallet address"
                 />
-                <span className="text-sm leading-6 text-slate-500">
+                <span className="text-xs leading-6 text-slate-500">
                   Paste your wallet address or mainnet USDC account. Aurefly will lock this invoice to your wallet-owned USDC account and never reroute payout.
                 </span>
               </label>
 
               <div className="rounded-[1.5rem] border border-white/7 bg-white/[0.03] p-5">
-                <div className="flex items-center justify-between gap-4 text-sm text-slate-300">
-                  <span>Customer pays</span>
-                  <span className="font-medium text-white">{formatMoney(summaryAmount)}</span>
+                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                  Invoice amount
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-4 text-sm text-slate-300">
-                  <span>Aurefly fee</span>
-                  <span className="font-medium text-white">$0.00</span>
+                <div className="mt-3 text-2xl font-semibold tracking-[-0.05em] text-white">
+                  {formatMoney(summaryAmount)}
                 </div>
-                <div className="mt-4 flex items-center justify-between gap-4 border-t border-white/6 pt-4 text-sm text-slate-300">
-                  <span>You receive</span>
-                  <span className="text-lg font-semibold text-white">
-                    {formatMoney(summaryAmount)}
-                  </span>
-                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-400">
+                  Customers pay this amount and settlement goes directly to your wallet.
+                </p>
               </div>
               </div>
 
-              <div className="grid gap-3 border-t border-white/6 px-5 py-4 sm:grid-cols-2 sm:px-7 sm:py-5">
+              <div className="grid gap-3 border-t border-white/6 px-5 py-4 sm:grid-cols-2 sm:px-6 sm:py-5">
                 <button
                   type="button"
                   onClick={closeModal}
