@@ -455,22 +455,24 @@ export function DashboardClient() {
 
     try {
       const clientRequestId = createRequestId || createClientRequestId();
-      const invoice = await createInvoice(
-        {
-          client_request_id: clientRequestId,
-          amount_usdc: createState.amount_usdc,
-          description: createState.description.trim(),
-          client_email: createState.client_email.trim(),
-          payout_address: createState.payout_address.trim(),
-        },
-      );
+      const invoice = await createInvoice({
+        client_request_id: clientRequestId,
+        amount_usdc: createState.amount_usdc,
+        description: createState.description.trim(),
+        client_email: createState.client_email.trim(),
+        payout_address: createState.payout_address.trim(),
+      });
 
-      const nextInvoices = await fetchInvoices();
-      setInvoices(nextInvoices);
+      setInvoices((current) => {
+        const withoutDuplicate = current.filter((existing) => existing.id !== invoice.id);
+        return [invoice, ...withoutDuplicate];
+      });
       setModalOpen(false);
       setCreateState(initialInvoiceState);
       setCreateRequestId("");
       setCreateError("");
+
+      void refreshInvoices();
 
       const invoicePath = `/pay/${invoice.id}`;
       const copied = await copyInvoiceUrl(invoicePath);

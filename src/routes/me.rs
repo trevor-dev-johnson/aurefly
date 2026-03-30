@@ -39,12 +39,18 @@ async fn list_invoices(
 ) -> AppResult<Json<Vec<InvoiceResponse>>> {
     let user = require_user(&headers, &state).await?;
     let invoices = invoices::list_for_user(&state.pool, user.id).await?;
-    Ok(Json(
-        invoices
-            .into_iter()
-            .map(|invoice| InvoiceResponse::from_private_invoice(invoice, None))
-            .collect::<AppResult<Vec<_>>>()?,
-    ))
+    let responses = invoices
+        .into_iter()
+        .filter_map(|invoice| match InvoiceResponse::from_private_invoice(invoice, None) {
+            Ok(response) => Some(response),
+            Err(error) => {
+                tracing::error!(error = ?error, user_id = %user.id, "skipping malformed invoice while listing invoices");
+                None
+            }
+        })
+        .collect();
+
+    Ok(Json(responses))
 }
 
 async fn create_invoice(
