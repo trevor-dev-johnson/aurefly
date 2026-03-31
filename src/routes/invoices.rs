@@ -5,6 +5,7 @@ use uuid::Uuid;
 use crate::{
     error::{AppError, AppResult},
     models::invoice::Invoice,
+    solana::parse_pubkey,
     services::invoices,
 };
 
@@ -65,6 +66,8 @@ impl InvoiceResponse {
     ) -> AppResult<Self> {
         let reference_pubkey =
             require_reference_pubkey(invoice.id, invoice.reference_pubkey.as_deref())?;
+        parse_pubkey(&invoice.wallet_pubkey, "wallet_pubkey")?;
+        parse_pubkey(&invoice.usdc_mint, "usdc_mint")?;
         let subtotal_usdc = invoice.subtotal_usdc.normalize().to_string();
         let platform_fee_usdc = invoice.platform_fee_usdc.normalize().to_string();
         let amount_usdc = invoice.amount_usdc.normalize().to_string();

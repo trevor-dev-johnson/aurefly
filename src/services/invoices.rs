@@ -119,17 +119,22 @@ pub async fn get(pool: &PgPool, invoice_id: Uuid) -> AppResult<Invoice> {
             invoices.id,
             invoices.user_id,
             invoices.reference_pubkey,
-            invoices.requested_payout_address,
+            COALESCE(
+                NULLIF(BTRIM(invoices.requested_payout_address), ''),
+                NULLIF(BTRIM(invoices.wallet_pubkey), ''),
+                NULLIF(BTRIM(invoices.usdc_ata), ''),
+                ''
+            ) AS requested_payout_address,
             invoices.subtotal_usdc,
             invoices.platform_fee_usdc,
             invoices.platform_fee_bps,
             invoices.amount_usdc,
             invoices.description,
             invoices.client_email,
-            invoices.status,
-            invoices.wallet_pubkey,
-            invoices.usdc_ata,
-            invoices.usdc_mint,
+            COALESCE(NULLIF(BTRIM(invoices.status), ''), 'pending') AS status,
+            COALESCE(NULLIF(BTRIM(invoices.wallet_pubkey), ''), '') AS wallet_pubkey,
+            COALESCE(NULLIF(BTRIM(invoices.usdc_ata), ''), '') AS usdc_ata,
+            COALESCE(NULLIF(BTRIM(invoices.usdc_mint), ''), '') AS usdc_mint,
             invoices.paid_at,
             COALESCE((
                 SELECT SUM(payments.amount_usdc)
