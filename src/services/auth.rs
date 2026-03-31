@@ -101,7 +101,15 @@ async fn update_existing_user(
         UPDATE users
         SET
             supabase_user_id = COALESCE(supabase_user_id, $2),
-            email = $3,
+            email = CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM users AS other
+                    WHERE other.email = $3
+                      AND other.id <> $1
+                ) THEN users.email
+                ELSE $3
+            END,
             name = COALESCE($4, name)
         WHERE id = $1
         RETURNING id, email, name, created_at
