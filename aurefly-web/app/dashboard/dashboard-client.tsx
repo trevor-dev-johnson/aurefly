@@ -88,27 +88,6 @@ function formatRelativeTime(value: string | null | undefined) {
   return `${Math.round(deltaHours / 24)}d ago`;
 }
 
-function formatDuration(milliseconds: number | null) {
-  if (!milliseconds || !Number.isFinite(milliseconds) || milliseconds <= 0) {
-    return "Settles fast";
-  }
-
-  const totalSeconds = Math.round(milliseconds / 1000);
-  if (totalSeconds < 60) {
-    return `${totalSeconds}s`;
-  }
-
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes < 60) {
-    return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const remainderMinutes = minutes % 60;
-  return remainderMinutes === 0 ? `${hours}h` : `${hours}h ${remainderMinutes}m`;
-}
-
 function roundToSix(value: number) {
   return Math.round(value * 1_000_000) / 1_000_000;
 }
@@ -315,17 +294,6 @@ export function DashboardClient() {
     const terminalCount = paidCount + expiredCount + cancelledCount;
     const successRate =
       terminalCount > 0 ? (paidCount / terminalCount) * 100 : paidCount > 0 ? 100 : 0;
-    const paymentDurations = invoices
-      .filter((invoice) => invoice.status === "paid" && invoice.paid_at)
-      .map(
-        (invoice) =>
-          new Date(invoice.paid_at as string).getTime() - new Date(invoice.created_at).getTime(),
-      )
-      .filter((value) => Number.isFinite(value) && value > 0);
-    const avgPaymentMs =
-      paymentDurations.length > 0
-        ? paymentDurations.reduce((sum, value) => sum + value, 0) / paymentDurations.length
-        : null;
 
     return {
       totalReceived,
@@ -335,7 +303,6 @@ export function DashboardClient() {
       expiredCount,
       cancelledCount,
       successRate,
-      avgPaymentMs,
     };
   }, [invoices]);
 
@@ -673,7 +640,7 @@ export function DashboardClient() {
             </div>
           </header>
 
-          <section className="mt-6 grid gap-4 xl:grid-cols-4">
+          <section className="mt-6 grid gap-4 xl:grid-cols-3">
             <article className="rounded-[1.7rem] border border-emerald-400/14 bg-emerald-400/8 p-5">
               <div className="text-sm text-emerald-100/80">Total volume</div>
               <div className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-white">
@@ -689,13 +656,6 @@ export function DashboardClient() {
               <div className="mt-2 text-sm text-sky-100/70">
                 {metrics.paidCount} paid · {metrics.expiredCount + metrics.cancelledCount} closed
               </div>
-            </article>
-            <article className="rounded-[1.7rem] border border-white/8 bg-white/[0.03] p-5">
-              <div className="text-sm text-slate-300">Avg payment time</div>
-              <div className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-white">
-                {formatDuration(metrics.avgPaymentMs)}
-              </div>
-              <div className="mt-2 text-sm text-slate-400">From issued to confirmed</div>
             </article>
             <article className="rounded-[1.7rem] border border-white/8 bg-white/[0.03] p-5">
               <div className="text-sm text-slate-300">Open now</div>

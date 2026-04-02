@@ -219,15 +219,15 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
   }
 
   return (
-    <main className="relative flex h-[100svh] overflow-hidden px-4 py-4 sm:px-6 sm:py-5">
+    <main className="relative min-h-[100svh] overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5">
       <div className="pointer-events-none absolute inset-x-0 top-[-12rem] mx-auto h-[28rem] w-[min(94vw,62rem)] rounded-full bg-[radial-gradient(circle,rgba(90,141,255,0.16),rgba(77,223,143,0.08)_44%,transparent_74%)] blur-3xl" />
       <div className="pointer-events-none absolute inset-x-0 top-[22%] mx-auto h-[22rem] w-[min(92vw,38rem)] rounded-full bg-[radial-gradient(circle,rgba(248,211,111,0.11),transparent_74%)] blur-3xl" />
 
-      <div className="relative mx-auto flex h-full w-full max-w-5xl items-center justify-center">
+      <div className="relative mx-auto flex w-full max-w-5xl items-start justify-center lg:min-h-[calc(100svh-2.5rem)] lg:items-center">
         <section className="w-full overflow-hidden rounded-[1.75rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.02))] shadow-[0_32px_100px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
           <div className="h-px w-full bg-[linear-gradient(90deg,transparent,rgba(77,223,143,0.4),transparent)]" />
 
-          <div className="grid gap-6 px-5 py-5 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-8">
+          <div className="grid gap-6 px-4 py-4 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-8">
             <div className="flex min-w-0 flex-col justify-between gap-5">
               <header className="flex items-center justify-between gap-4 text-sm text-slate-300">
                 <Link href="/" className="inline-flex items-center gap-3">
@@ -304,7 +304,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
                 ) : null}
               </section>
 
-              <p className="text-sm text-slate-400">
+              <p className="text-sm leading-7 text-slate-400">
                 Payments usually confirm in ~10-15 seconds.
               </p>
             </div>
@@ -346,7 +346,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
                       <span className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
                         Merchant wallet
                       </span>
-                      <code className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white">
+                      <code className="break-all rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white">
                         {shortAddress(paymentRecipient)}
                       </code>
                       <p className="text-xs leading-6 text-slate-400">
@@ -359,7 +359,7 @@ export function PayInvoiceClient({ invoice }: PayInvoiceClientProps) {
                         <span className="font-mono text-[11px] uppercase tracking-[0.26em] text-slate-500">
                           USDC settlement account
                         </span>
-                        <code className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white">
+                        <code className="break-all rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white">
                           {shortAddress(currentInvoice.usdc_ata)}
                         </code>
                         <p className="text-xs leading-6 text-slate-400">
