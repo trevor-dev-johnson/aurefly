@@ -48,8 +48,14 @@ impl Config {
             .filter(|value| !value.is_empty())
             .map(ToString::to_string)
             .collect();
-        let supabase_url = optional_env("SUPABASE_URL");
-        let supabase_publishable_key = optional_env("SUPABASE_PUBLISHABLE_KEY");
+        let supabase_url =
+            optional_env_any(&["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"]);
+        let supabase_publishable_key = optional_env_any(&[
+            "SUPABASE_PUBLISHABLE_KEY",
+            "SUPABASE_ANON_KEY",
+            "SUPABASE_PUBLISHABLE_DEFAULT_KEY",
+            "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY",
+        ]);
         let helius_api_key = env::var("HELIUS_API_KEY").ok().and_then(|value| {
             let trimmed = value.trim();
             if trimmed.is_empty() {
@@ -145,4 +151,8 @@ fn optional_env(name: &str) -> Option<String> {
             Some(trimmed.to_string())
         }
     })
+}
+
+fn optional_env_any(names: &[&str]) -> Option<String> {
+    names.iter().find_map(|name| optional_env(name))
 }
