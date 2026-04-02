@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { LandingHeader } from "@/components/landing-header";
 
 const DEMO_INVOICE_ID = "544ff0a7-3ee1-4d42-aa74-2305dc6921bf";
 
@@ -32,101 +32,7 @@ export default function HomePage() {
       <div className="pointer-events-none absolute left-1/2 top-[18rem] h-[22rem] w-[22rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(248,211,111,0.14),transparent_72%)] blur-3xl" />
 
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 pb-24 pt-6 lg:px-8">
-        <header className="rounded-full border border-white/8 bg-white/[0.03] px-5 py-3 backdrop-blur-xl">
-          <div className="flex items-center justify-between gap-4">
-            <Link href="/" className="inline-flex items-center gap-3">
-              <Image
-                src="/aurefly-logo.svg"
-                alt="Aurefly"
-                width={40}
-                height={40}
-                className="h-10 w-10 drop-shadow-[0_0_20px_rgba(248,211,111,0.2)]"
-                priority
-              />
-              <span className="text-sm font-semibold tracking-[-0.03em] text-white">
-                Aurefly
-              </span>
-            </Link>
-
-            <nav className="hidden items-center gap-8 text-sm text-slate-300 lg:flex">
-              <a href="#how-it-works" className="transition hover:text-white">
-                How it works
-              </a>
-              <a href="#proof" className="transition hover:text-white">
-                Why Aurefly
-              </a>
-              <a href="#final-cta" className="transition hover:text-white">
-                Start
-              </a>
-            </nav>
-
-            <div className="hidden items-center gap-3 lg:flex">
-              <Link
-                href="/auth?mode=sign-in"
-                className="inline-flex h-11 items-center justify-center rounded-full px-4 text-sm font-medium text-slate-300 transition hover:text-white"
-              >
-                Sign in
-              </Link>
-              <Link
-                href={`/pay/${DEMO_INVOICE_ID}`}
-                className="inline-flex h-11 items-center justify-center rounded-full border border-white/10 px-5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.04]"
-              >
-                Try Demo Invoice
-              </Link>
-              <Link
-                href="/auth?mode=sign-up"
-                className="inline-flex h-11 items-center justify-center rounded-full bg-[#4f86ff] px-5 text-sm font-semibold text-white shadow-[0_10px_28px_rgba(79,134,255,0.24)] transition hover:-translate-y-px hover:bg-[#6595ff]"
-              >
-                Get Started
-              </Link>
-            </div>
-
-            <details className="group lg:hidden">
-              <summary className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white transition hover:bg-white/[0.05]">
-                <span className="sr-only">Open menu</span>
-                <div className="flex flex-col gap-1.5">
-                  <span className="block h-px w-4 bg-current transition group-open:translate-y-[7px] group-open:rotate-45" />
-                  <span className="block h-px w-4 bg-current transition group-open:opacity-0" />
-                  <span className="block h-px w-4 bg-current transition group-open:-translate-y-[7px] group-open:-rotate-45" />
-                </div>
-              </summary>
-
-              <div className="absolute right-6 top-20 z-20 w-[calc(100vw-3rem)] max-w-xs rounded-3xl border border-white/10 bg-[#0b121c]/95 p-4 shadow-[0_22px_60px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-                <div className="grid gap-2 text-sm text-slate-200">
-                  <a href="#how-it-works" className="rounded-2xl px-4 py-3 transition hover:bg-white/[0.04]">
-                    How it works
-                  </a>
-                  <a href="#proof" className="rounded-2xl px-4 py-3 transition hover:bg-white/[0.04]">
-                    Why Aurefly
-                  </a>
-                  <a href="#final-cta" className="rounded-2xl px-4 py-3 transition hover:bg-white/[0.04]">
-                    Start
-                  </a>
-                </div>
-                <div className="mt-4 grid gap-3">
-                  <Link
-                    href="/auth?mode=sign-in"
-                    className="inline-flex h-11 items-center justify-center rounded-full border border-white/10 text-sm font-medium text-white transition hover:bg-white/[0.04]"
-                  >
-                    Sign in
-                  </Link>
-                  <Link
-                    href={`/pay/${DEMO_INVOICE_ID}`}
-                    className="inline-flex h-11 items-center justify-center rounded-full border border-white/10 text-sm font-medium text-white transition hover:bg-white/[0.04]"
-                  >
-                    Try Demo Invoice
-                  </Link>
-                  <Link
-                    href="/auth?mode=sign-up"
-                    className="inline-flex h-11 items-center justify-center rounded-full bg-[#4f86ff] text-sm font-semibold text-white"
-                  >
-                    Get Started
-                  </Link>
-                </div>
-              </div>
-            </details>
-          </div>
-        </header>
+        <LandingHeader demoInvoiceId={DEMO_INVOICE_ID} />
 
         <section className="relative flex flex-1 flex-col items-center justify-center px-0 pb-18 pt-18 text-center sm:pt-24">
           <div className="max-w-3xl">
