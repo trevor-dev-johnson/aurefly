@@ -28,10 +28,14 @@
 }
 
 html {
+  min-height: 100%;
+  overflow-x: hidden;
   scroll-behavior: smooth;
 }
 
 body {
+  min-height: 100svh;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at top center, rgba(90, 141, 255, 0.12), transparent 30%),
     radial-gradient(circle at 50% 28%, rgba(77, 223, 143, 0.09), transparent 24%),
