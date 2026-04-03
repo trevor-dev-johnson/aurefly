@@ -1,5 +1,3 @@
-import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
-
 export type PublicInvoice = {
   id: string;
   amount_usdc: string;
@@ -93,24 +91,35 @@ async function apiFetch<T>(path: string, options: ApiFetchOptions = {}) {
   return data as T;
 }
 
-async function browserAuthedApiFetch<T>(path: string, options: ApiFetchOptions = {}) {
-  const supabase = createSupabaseBrowserClient();
-  const {
-    data: { session },
-    error,
-  } = await supabase.auth.getSession();
+async function internalApiFetch<T>(path: string, options: ApiFetchOptions = {}) {
+  const headers = new Headers(options.headers || {});
 
-  if (error || !session?.access_token) {
-    throw new ApiError("Unauthorized", 401);
+  if (options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
 
-  const headers = new Headers(options.headers || {});
-  headers.set("Authorization", `Bearer ${session.access_token}`);
-
-  return apiFetch<T>(path, {
-    ...options,
+  const response = await fetch(`/api${path}`, {
+    method: options.method || "GET",
     headers,
+    body: options.body,
+    cache: "no-store",
+    credentials: "include",
   });
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new ApiError(
+      typeof data?.error === "string" ? data.error : "Request failed.",
+      response.status,
+    );
+  }
+
+  return data as T;
 }
 
 export async function fetchPublicInvoice(invoiceId: string) {
@@ -137,22 +146,22 @@ export function shortAddress(value: string | null | undefined) {
 }
 
 export async function fetchCurrentUser() {
-  return browserAuthedApiFetch<AuthenticatedUser>("/auth/me");
+  return internalApiFetch<AuthenticatedUser>("/me");
 }
 
 export async function fetchInvoices() {
-  return browserAuthedApiFetch<MerchantInvoice[]>("/me/invoices");
+  return internalApiFetch<MerchantInvoice[]>("/invoices");
 }
 
 export async function createInvoice(payload: CreateInvoicePayload) {
-  return browserAuthedApiFetch<MerchantInvoice>("/me/invoices", {
+  return internalApiFetch<MerchantInvoice>("/invoices", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function cancelInvoice(invoiceId: string) {
-  return browserAuthedApiFetch<MerchantInvoice>(`/me/invoices/${invoiceId}/cancel`, {
+  return internalApiFetch<MerchantInvoice>(`/invoices/${invoiceId}/cancel`, {
     method: "POST",
   });
 }

@@ -3,8 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/browser";
+import { useMemo, useState } from "react";
 
 type AuthMode = "sign-in" | "sign-up";
 
@@ -23,31 +22,6 @@ export function AuthClient({ initialMode }: AuthClientProps) {
   const [status, setStatus] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const mode = getMode(initialMode || null);
-
-  useEffect(() => {
-    let active = true;
-
-    async function checkSession() {
-      try {
-        const supabase = createClient();
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (active && session) {
-          router.replace("/dashboard");
-        }
-      } catch {
-        // Render the form and surface the configuration issue on submit instead.
-      }
-    }
-
-    void checkSession();
-
-    return () => {
-      active = false;
-    };
-  }, [router]);
 
   const copy = useMemo(() => {
     if (mode === "sign-in") {
@@ -77,35 +51,52 @@ export function AuthClient({ initialMode }: AuthClientProps) {
     setStatus(mode === "sign-in" ? "Signing in..." : "Creating account...");
 
     try {
-      const supabase = createClient();
       if (mode === "sign-in") {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
+        const response = await fetch("/api/auth/sign-in", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: email.trim(),
+            password,
+          }),
         });
 
-        if (error) {
-          throw error;
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            typeof payload?.error === "string" ? payload.error : "Unable to continue.",
+          );
         }
 
         router.replace("/dashboard");
         router.refresh();
       } else {
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
+        const response = await fetch("/api/auth/sign-up", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: email.trim(),
+            password,
+          }),
         });
 
-        if (error) {
-          throw error;
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            typeof payload?.error === "string" ? payload.error : "Unable to continue.",
+          );
         }
 
-        if (data.session) {
-          router.replace("/dashboard");
-          router.refresh();
-        } else {
+        if (payload?.requiresEmailConfirmation) {
           setStatus("Check your email to confirm your account, then sign in.");
           setSubmitting(false);
+        } else {
+          router.replace("/dashboard");
+          router.refresh();
         }
       }
     } catch (error) {

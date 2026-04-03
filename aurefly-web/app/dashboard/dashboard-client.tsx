@@ -15,7 +15,6 @@ import {
   type AuthenticatedUser,
   type MerchantInvoice,
 } from "@/lib/aurefly-api";
-import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const POLL_INTERVAL_MS = 8_000;
 const SECTION_IDS = ["overview", "invoices", "wallet"] as const;
@@ -468,8 +467,17 @@ export function DashboardClient() {
 
   async function handleSignOut() {
     try {
-      const supabase = createSupabaseBrowserClient();
-      await supabase.auth.signOut();
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!response.ok && response.status !== 204) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(
+          typeof payload?.error === "string" ? payload.error : "Unable to sign out.",
+        );
+      }
     } catch (error) {
       setNotice({
         type: "error",
