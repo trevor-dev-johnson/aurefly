@@ -366,6 +366,22 @@ export function DashboardClient() {
     }));
   }, [invoices]);
 
+  const unpaidQueue = useMemo(() => {
+    return [...invoices]
+      .filter((invoice) => invoice.status === "pending" || invoice.status === "expired")
+      .sort((left, right) => {
+        const leftPriority = left.status === "expired" ? 0 : 1;
+        const rightPriority = right.status === "expired" ? 0 : 1;
+
+        if (leftPriority !== rightPriority) {
+          return leftPriority - rightPriority;
+        }
+
+        return new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
+      })
+      .slice(0, 6);
+  }, [invoices]);
+
   const summaryAmount = useMemo(() => parseAmount(createState.amount_usdc), [createState.amount_usdc]);
 
   async function refreshInvoices() {
@@ -845,7 +861,78 @@ export function DashboardClient() {
               )}
             </section>
 
-            <aside className="space-y-4">
+            <aside className="space-y-4 xl:sticky xl:top-6 self-start">
+              <section className="rounded-[1.8rem] border border-white/7 bg-white/[0.03] p-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-slate-500">Collections</div>
+                    <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">
+                      Unpaid / overdue
+                    </h2>
+                  </div>
+                  <div className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1 text-xs font-medium text-slate-300">
+                    {unpaidQueue.length}
+                  </div>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-400">
+                  See what still needs a follow-up.
+                </p>
+
+                <div className="mt-5 grid gap-3">
+                  {unpaidQueue.length === 0 ? (
+                    <div className="rounded-[1.2rem] border border-white/7 bg-[#0c1520]/70 p-4 text-sm text-slate-400">
+                      Nothing outstanding right now.
+                    </div>
+                  ) : (
+                    unpaidQueue.map((invoice) => {
+                      const label =
+                        invoice.description ||
+                        invoice.client_email ||
+                        `Invoice ${invoice.id.slice(0, 8).toUpperCase()}`;
+
+                      return (
+                        <article
+                          key={`${invoice.id}-queue`}
+                          className="rounded-[1.2rem] border border-white/7 bg-[#0c1520]/70 p-4"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-white">{label}</div>
+                              <div className="mt-1 text-sm text-slate-400">
+                                {invoice.status === "expired" ? "Overdue" : "Unpaid"} since{" "}
+                                {formatShortDate(invoice.created_at)}
+                              </div>
+                            </div>
+                            <span
+                              className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                                invoice.status === "expired"
+                                  ? "border border-amber-400/18 bg-amber-400/10 text-amber-200"
+                                  : "border border-white/10 bg-white/[0.05] text-slate-300"
+                              }`}
+                            >
+                              {invoice.status === "expired" ? "Overdue" : "Unpaid"}
+                            </span>
+                          </div>
+
+                          <div className="mt-4 flex items-center justify-between gap-3">
+                            <div className="text-lg font-semibold tracking-[-0.03em] text-white">
+                              {formatMoney(invoice.amount_usdc)}
+                            </div>
+                            <Link
+                              href={`/pay/${invoice.id}`}
+                              target="_blank"
+                              className="text-sm font-medium text-sky-300 transition hover:text-sky-200"
+                            >
+                              Open
+                            </Link>
+                          </div>
+                        </article>
+                      );
+                    })
+                  )}
+                </div>
+              </section>
+
               <section className="rounded-[1.8rem] border border-white/7 bg-white/[0.03] p-5">
                 <div className="flex items-center justify-between">
                   <div>

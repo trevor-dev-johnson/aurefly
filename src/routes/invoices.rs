@@ -12,13 +12,16 @@ use crate::{
 #[derive(Debug, Serialize)]
 pub(crate) struct InvoiceResponse {
     id: Uuid,
-    user_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    user_id: Option<Uuid>,
     reference_pubkey: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     requested_payout_address: Option<String>,
     subtotal_usdc: String,
-    platform_fee_usdc: String,
-    platform_fee_bps: i16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    platform_fee_usdc: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    platform_fee_bps: Option<i16>,
     amount_usdc: String,
     net_amount_usdc: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -62,7 +65,7 @@ impl InvoiceResponse {
     fn from_invoice(
         invoice: Invoice,
         payment_observation: Option<PaymentObservation>,
-        include_client_email: bool,
+        include_private_details: bool,
     ) -> AppResult<Self> {
         let reference_pubkey =
             require_reference_pubkey(invoice.id, invoice.reference_pubkey.as_deref())?;
@@ -93,20 +96,32 @@ impl InvoiceResponse {
 
         Ok(Self {
             id: invoice.id,
-            user_id: invoice.user_id,
+            user_id: if include_private_details {
+                Some(invoice.user_id)
+            } else {
+                None
+            },
             reference_pubkey: Some(reference_pubkey.to_string()),
-            requested_payout_address: if include_client_email {
+            requested_payout_address: if include_private_details {
                 Some(invoice.requested_payout_address)
             } else {
                 None
             },
             subtotal_usdc,
-            platform_fee_usdc,
-            platform_fee_bps: invoice.platform_fee_bps,
+            platform_fee_usdc: if include_private_details {
+                Some(platform_fee_usdc)
+            } else {
+                None
+            },
+            platform_fee_bps: if include_private_details {
+                Some(invoice.platform_fee_bps)
+            } else {
+                None
+            },
             amount_usdc,
             net_amount_usdc,
             description: invoice.description,
-            client_email: if include_client_email {
+            client_email: if include_private_details {
                 invoice.client_email
             } else {
                 None
