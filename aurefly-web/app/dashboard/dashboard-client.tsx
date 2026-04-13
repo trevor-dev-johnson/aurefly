@@ -292,22 +292,12 @@ export function DashboardClient() {
         Math.max(0, Number(invoice.amount_usdc || 0) - Number(invoice.paid_amount_usdc || 0))
       );
     }, 0);
-    const paidCount = invoices.filter((invoice) => invoice.status === "paid").length;
     const pendingCount = invoices.filter((invoice) => invoice.status === "pending").length;
-    const expiredCount = invoices.filter((invoice) => invoice.status === "expired").length;
-    const cancelledCount = invoices.filter((invoice) => invoice.status === "cancelled").length;
-    const terminalCount = paidCount + expiredCount + cancelledCount;
-    const successRate =
-      terminalCount > 0 ? (paidCount / terminalCount) * 100 : paidCount > 0 ? 100 : 0;
 
     return {
       totalReceived,
       pendingTotal,
-      paidCount,
       pendingCount,
-      expiredCount,
-      cancelledCount,
-      successRate,
     };
   }, [invoices]);
 
@@ -549,7 +539,7 @@ export function DashboardClient() {
   }
 
   return (
-    <main className="relative min-h-[100svh] overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6">
+    <main className="relative overflow-visible px-4 py-4 sm:px-6 sm:py-6">
       <div className="pointer-events-none absolute inset-x-0 top-[-10rem] mx-auto h-[28rem] w-[min(92vw,64rem)] rounded-full bg-[radial-gradient(circle,rgba(90,141,255,0.16),rgba(77,223,143,0.08)_44%,transparent_74%)] blur-3xl" />
       <div className="pointer-events-none absolute bottom-[-10rem] left-1/2 h-[24rem] w-[24rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(248,211,111,0.12),transparent_72%)] blur-3xl" />
 
@@ -682,22 +672,13 @@ export function DashboardClient() {
             </div>
           </header>
 
-          <section className="mt-6 grid gap-4 xl:grid-cols-3">
+          <section className="mt-6 grid gap-4 md:grid-cols-2">
             <article className="rounded-[1.7rem] border border-emerald-400/14 bg-emerald-400/8 p-5">
               <div className="text-sm text-emerald-100/80">Total volume</div>
               <div className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-white">
                 {formatMoney(metrics.totalReceived)}
               </div>
               <div className="mt-2 text-sm text-emerald-100/70">USDC processed</div>
-            </article>
-            <article className="rounded-[1.7rem] border border-sky-400/14 bg-sky-400/8 p-5">
-              <div className="text-sm text-sky-100/80">Success rate</div>
-              <div className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-white">
-                {metrics.successRate.toFixed(0)}%
-              </div>
-              <div className="mt-2 text-sm text-sky-100/70">
-                {metrics.paidCount} paid · {metrics.expiredCount + metrics.cancelledCount} closed
-              </div>
             </article>
             <article className="rounded-[1.7rem] border border-white/8 bg-white/[0.03] p-5">
               <div className="text-sm text-slate-300">Open now</div>
@@ -873,7 +854,7 @@ export function DashboardClient() {
               )}
             </section>
 
-            <aside className="space-y-4 xl:sticky xl:top-6 self-start">
+            <aside className="self-start space-y-4">
               <section className="rounded-[1.8rem] border border-white/7 bg-white/[0.03] p-5">
                 <div className="flex items-center justify-between gap-4">
                   <div>
