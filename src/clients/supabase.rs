@@ -48,14 +48,12 @@ impl SupabaseAuthClient {
             return Ok(None);
         }
 
-        let supabase_url = self
-            .supabase_url
-            .as_deref()
-            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Supabase auth is not configured")))?;
-        let publishable_key = self
-            .publishable_key
-            .as_deref()
-            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Supabase auth is not configured")))?;
+        let supabase_url = self.supabase_url.as_deref().ok_or_else(|| {
+            AppError::Internal(anyhow::anyhow!("Supabase auth is not configured"))
+        })?;
+        let publishable_key = self.publishable_key.as_deref().ok_or_else(|| {
+            AppError::Internal(anyhow::anyhow!("Supabase auth is not configured"))
+        })?;
 
         let endpoint = format!("{}/auth/v1/user", supabase_url.trim_end_matches('/'));
         let response = self
@@ -66,9 +64,7 @@ impl SupabaseAuthClient {
             .send()
             .await
             .map_err(|error| {
-                AppError::Internal(anyhow::anyhow!(
-                    "failed to contact Supabase Auth: {error}"
-                ))
+                AppError::Internal(anyhow::anyhow!("failed to contact Supabase Auth: {error}"))
             })?;
 
         if response.status().as_u16() == 401 || response.status().as_u16() == 403 {

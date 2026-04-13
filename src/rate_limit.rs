@@ -6,9 +6,7 @@ use std::{
 
 use tokio::sync::Mutex;
 
-use crate::{
-    error::{AppError, AppResult},
-};
+use crate::error::{AppError, AppResult};
 
 #[derive(Clone)]
 pub struct AuthRateLimiter {

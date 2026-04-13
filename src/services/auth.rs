@@ -59,7 +59,10 @@ async fn sync_user_from_identity(pool: &PgPool, identity: &SupabaseIdentity) -> 
     Ok(user)
 }
 
-async fn find_by_supabase_user_id(pool: &PgPool, supabase_user_id: Uuid) -> AppResult<Option<User>> {
+async fn find_by_supabase_user_id(
+    pool: &PgPool,
+    supabase_user_id: Uuid,
+) -> AppResult<Option<User>> {
     let user = sqlx::query_as::<_, User>(
         r#"
         SELECT id, email, name, created_at

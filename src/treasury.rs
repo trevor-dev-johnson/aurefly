@@ -53,8 +53,8 @@ pub fn load_existing_keypair(path: &str) -> Result<Arc<Keypair>> {
 }
 
 pub fn load_existing_keypair_from_json(keypair_json: &str) -> Result<Arc<Keypair>> {
-    let keypair = read_keypair_from_json(keypair_json)
-        .context("failed to parse keypair JSON secret")?;
+    let keypair =
+        read_keypair_from_json(keypair_json).context("failed to parse keypair JSON secret")?;
     Ok(Arc::new(keypair))
 }
 
@@ -81,6 +81,7 @@ fn read_keypair(path: &Path) -> Result<Keypair> {
 }
 
 fn read_keypair_from_json(value: &str) -> Result<Keypair> {
-    let secret: Vec<u8> = serde_json::from_str(value).context("keypair secret must be valid JSON")?;
+    let secret: Vec<u8> =
+        serde_json::from_str(value).context("keypair secret must be valid JSON")?;
     Keypair::try_from(secret.as_slice()).map_err(|error| anyhow::anyhow!(error.to_string()))
 }

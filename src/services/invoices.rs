@@ -1,6 +1,6 @@
 use std::{str::FromStr, time::Duration};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use solana_sdk::{hash::hash, pubkey::Pubkey};
 use sqlx::PgPool;
@@ -353,10 +353,17 @@ pub async fn list_pending_settlement_targets(
 ) -> AppResult<Vec<PendingSettlementTarget>> {
     let targets = sqlx::query_as::<_, PendingSettlementTarget>(
         r#"
-        SELECT DISTINCT ON (usdc_ata, usdc_mint) usdc_ata, usdc_mint, wallet_pubkey
+        SELECT
+            usdc_ata,
+            usdc_mint,
+            wallet_pubkey,
+            COUNT(*)::bigint AS open_invoice_count,
+            MAX(created_at) AS newest_invoice_created_at,
+            MIN(created_at) AS oldest_invoice_created_at
         FROM invoices
         WHERE status = 'pending'
-        ORDER BY usdc_ata ASC, usdc_mint ASC, created_at DESC
+        GROUP BY usdc_ata, usdc_mint, wallet_pubkey
+        ORDER BY MAX(created_at) DESC, COUNT(*) DESC, usdc_ata ASC
         "#,
     )
     .fetch_all(pool)
@@ -367,7 +374,9 @@ pub async fn list_pending_settlement_targets(
 
 pub async fn expire_pending_older_than(pool: &PgPool, ttl: Duration) -> AppResult<u64> {
     let ttl_seconds = i64::try_from(ttl.as_secs()).map_err(|_| {
-        AppError::Internal(anyhow::anyhow!("pending invoice TTL is too large to convert"))
+        AppError::Internal(anyhow::anyhow!(
+            "pending invoice TTL is too large to convert"
+        ))
     })?;
     let cutoff = Utc::now() - chrono::Duration::seconds(ttl_seconds);
 
@@ -399,15 +408,17 @@ pub async fn expire_invalid_pending_destinations(pool: &PgPool) -> AppResult<u64
 
     let invalid_ids = pending
         .into_iter()
-        .filter_map(|invoice| match UsdcSettlement::from_wallet_pubkey(&invoice.wallet_pubkey) {
-            Ok(settlement)
-                if settlement.usdc_ata == invoice.usdc_ata
-                    && settlement.usdc_mint == invoice.usdc_mint =>
-            {
-                None
-            }
-            Ok(_) | Err(_) => Some(invoice.id),
-        })
+        .filter_map(
+            |invoice| match UsdcSettlement::from_wallet_pubkey(&invoice.wallet_pubkey) {
+                Ok(settlement)
+                    if settlement.usdc_ata == invoice.usdc_ata
+                        && settlement.usdc_mint == invoice.usdc_mint =>
+                {
+                    None
+                }
+                Ok(_) | Err(_) => Some(invoice.id),
+            },
+        )
         .collect::<Vec<_>>();
 
     if invalid_ids.is_empty() {
@@ -435,8 +446,9 @@ pub fn invoice_reference_pubkey(invoice_id: Uuid) -> String {
 }
 
 fn parse_amount(raw_amount: &str) -> AppResult<Decimal> {
-    let amount = Decimal::from_str(raw_amount.trim())
-        .map_err(|_| AppError::Validation("amount_usdc must be a valid decimal string".to_string()))?;
+    let amount = Decimal::from_str(raw_amount.trim()).map_err(|_| {
+        AppError::Validation("amount_usdc must be a valid decimal string".to_string())
+    })?;
 
     if amount <= Decimal::ZERO {
         return Err(AppError::Validation(
@@ -479,11 +491,14 @@ pub struct ReferenceMatchCandidate {
     pub status: String,
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(Clone, sqlx::FromRow)]
 pub struct PendingSettlementTarget {
     pub usdc_ata: String,
     pub usdc_mint: String,
     pub wallet_pubkey: String,
+    pub open_invoice_count: i64,
+    pub newest_invoice_created_at: DateTime<Utc>,
+    pub oldest_invoice_created_at: DateTime<Utc>,
 }
 
 #[derive(sqlx::FromRow)]

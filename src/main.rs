@@ -8,8 +8,8 @@ mod error;
 mod models;
 mod rate_limit;
 mod routes;
-mod solana;
 mod services;
+mod solana;
 mod state;
 mod treasury;
 
@@ -20,7 +20,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 use crate::{
     clients::{solana::SolanaRpcClient, supabase::SupabaseAuthClient},
-    config::Config, detector::PaymentDetectorConfig,
+    config::Config,
+    detector::PaymentDetectorConfig,
     services::invoices,
     state::AppState,
 };
@@ -77,11 +78,32 @@ async fn main() -> anyhow::Result<()> {
         "using Supabase auth provider"
     );
 
-    let detector_poll_interval = Duration::from_secs(config.payment_detector_poll_interval_secs);
+    let detector_scheduler_tick = Duration::from_secs(config.payment_detector_poll_interval_secs);
+    let detector_fast_poll_interval =
+        Duration::from_secs(config.payment_detector_fast_poll_interval_secs);
+    let detector_medium_poll_interval =
+        Duration::from_secs(config.payment_detector_medium_poll_interval_secs);
+    let detector_slow_poll_interval =
+        Duration::from_secs(config.payment_detector_slow_poll_interval_secs);
+    let detector_fast_window = Duration::from_secs(config.payment_detector_fast_window_secs);
+    let detector_medium_window = Duration::from_secs(config.payment_detector_medium_window_secs);
+    let detector_max_idle_backoff =
+        Duration::from_secs(config.payment_detector_max_idle_backoff_secs);
+    let detector_signature_dedupe_ttl =
+        Duration::from_secs(config.payment_detector_signature_dedupe_ttl_secs);
     let detector_signature_limit = config.payment_detector_signature_limit;
     let invoice_pending_ttl = Duration::from_secs(config.invoice_pending_ttl_secs);
     tracing::info!(
-        poll_interval_secs = detector_poll_interval.as_secs(),
+        scheduler_tick_secs = detector_scheduler_tick.as_secs(),
+        fast_poll_interval_secs = detector_fast_poll_interval.as_secs(),
+        medium_poll_interval_secs = detector_medium_poll_interval.as_secs(),
+        slow_poll_interval_secs = detector_slow_poll_interval.as_secs(),
+        fast_window_secs = detector_fast_window.as_secs(),
+        medium_window_secs = detector_medium_window.as_secs(),
+        max_targets_per_cycle = config.payment_detector_max_targets_per_cycle,
+        max_active_logs_subscriptions = config.payment_detector_max_active_logs_subscriptions,
+        max_idle_backoff_secs = detector_max_idle_backoff.as_secs(),
+        signature_dedupe_ttl_secs = detector_signature_dedupe_ttl.as_secs(),
         signature_limit = detector_signature_limit,
         pending_invoice_ttl_secs = invoice_pending_ttl.as_secs(),
         websocket_enabled = solana.websocket_url().is_some(),
@@ -92,7 +114,16 @@ async fn main() -> anyhow::Result<()> {
         pool.clone(),
         solana.clone(),
         PaymentDetectorConfig {
-            poll_interval: detector_poll_interval,
+            scheduler_tick: detector_scheduler_tick,
+            fast_poll_interval: detector_fast_poll_interval,
+            medium_poll_interval: detector_medium_poll_interval,
+            slow_poll_interval: detector_slow_poll_interval,
+            fast_window: detector_fast_window,
+            medium_window: detector_medium_window,
+            max_targets_per_cycle: config.payment_detector_max_targets_per_cycle,
+            max_active_logs_subscriptions: config.payment_detector_max_active_logs_subscriptions,
+            max_idle_backoff: detector_max_idle_backoff,
+            signature_dedupe_ttl: detector_signature_dedupe_ttl,
             signature_limit: detector_signature_limit,
             pending_invoice_ttl: invoice_pending_ttl,
         },
@@ -104,7 +135,7 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    let state = AppState::new(pool, solana, supabase_auth);
+    let state = AppState::new(pool, solana, supabase_auth, config.admin_emails.clone());
     let app = app::build(state, config.allowed_origins.clone());
     let listener = TcpListener::bind(config.socket_addr())
         .await

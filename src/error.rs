@@ -17,6 +17,8 @@ pub enum AppError {
     Validation(String),
     #[error("{0}")]
     Unauthorized(String),
+    #[error("{0}")]
+    Forbidden(String),
     #[error("{service} rate limit reached during {operation}; retry after {retry_after_secs}s")]
     RateLimited {
         service: &'static str,
@@ -48,6 +50,7 @@ impl IntoResponse for AppError {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Validation(_) => StatusCode::BAD_REQUEST,
             Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            Self::Forbidden(_) => StatusCode::FORBIDDEN,
             Self::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
@@ -56,6 +59,7 @@ impl IntoResponse for AppError {
             Self::NotFound => self.to_string(),
             Self::Validation(_) => self.to_string(),
             Self::Unauthorized(_) => self.to_string(),
+            Self::Forbidden(_) => self.to_string(),
             Self::RateLimited {
                 retry_after_secs, ..
             } => format!("too many requests; retry after {retry_after_secs}s"),

@@ -40,18 +40,18 @@ impl UsdcSettlement {
 
 pub fn parse_pubkey(value: &str, field_name: &str) -> AppResult<Pubkey> {
     Pubkey::from_str(value.trim()).map_err(|_| {
-        AppError::Validation(format!(
-            "{field_name} must be a valid Solana public key"
-        ))
+        AppError::Validation(format!("{field_name} must be a valid Solana public key"))
     })
 }
 
 fn usdc_mint_pubkey() -> AppResult<Pubkey> {
-    Pubkey::from_str(MAINNET_USDC_MINT).map_err(|error| AppError::Internal(anyhow::Error::new(error)))
+    Pubkey::from_str(MAINNET_USDC_MINT)
+        .map_err(|error| AppError::Internal(anyhow::Error::new(error)))
 }
 
 fn token_program_pubkey() -> AppResult<Pubkey> {
-    Pubkey::from_str(TOKEN_PROGRAM_ID).map_err(|error| AppError::Internal(anyhow::Error::new(error)))
+    Pubkey::from_str(TOKEN_PROGRAM_ID)
+        .map_err(|error| AppError::Internal(anyhow::Error::new(error)))
 }
 
 fn associated_token_program_pubkey() -> AppResult<Pubkey> {

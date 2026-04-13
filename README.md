@@ -151,6 +151,7 @@ Minimum backend env:
 DATABASE_URL=<Railway Postgres connection string>
 PORT=8080
 ALLOWED_ORIGINS=https://aurefly.com,https://www.aurefly.com
+ADMIN_EMAILS=ops@example.com
 SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<your-supabase-publishable-key>
 HELIUS_API_KEY=<your-helius-key>
@@ -159,8 +160,20 @@ SOLANA_FALLBACK_WS_URL=<optional QuickNode WSS URL>
 TREASURY_WALLET_JSON=<optional>
 SOLANA_FEE_PAYER_JSON=<optional>
 INVOICE_PENDING_TTL_SECS=1800
+PAYMENT_DETECTOR_POLL_INTERVAL_SECS=5
+PAYMENT_DETECTOR_FAST_POLL_INTERVAL_SECS=6
+PAYMENT_DETECTOR_MEDIUM_POLL_INTERVAL_SECS=20
+PAYMENT_DETECTOR_SLOW_POLL_INTERVAL_SECS=60
+PAYMENT_DETECTOR_FAST_WINDOW_SECS=120
+PAYMENT_DETECTOR_MEDIUM_WINDOW_SECS=900
+PAYMENT_DETECTOR_MAX_TARGETS_PER_CYCLE=6
+PAYMENT_DETECTOR_MAX_ACTIVE_LOGS_SUBSCRIPTIONS=12
+PAYMENT_DETECTOR_MAX_IDLE_BACKOFF_SECS=300
+PAYMENT_DETECTOR_SIGNATURE_DEDUPE_TTL_SECS=300
 RUST_LOG=info
 ```
+
+Detector behavior now prioritizes fresh pending invoices, limits active websocket subscriptions, and backs older unpaid targets off aggressively instead of polling every open destination at a flat 10-second cadence.
 
 ## API Overview
 
@@ -178,6 +191,16 @@ Authenticated invoice management:
 - `GET /api/v1/me/invoices`
 - `POST /api/v1/me/invoices`
 - `POST /api/v1/me/invoices/{invoice_id}/cancel`
+
+Internal admin reconciliation:
+
+- `GET /api/v1/admin/unmatched-payments`
+- `GET /api/v1/admin/unmatched-payments/{id}`
+- `POST /api/v1/admin/unmatched-payments/{id}/link`
+- `POST /api/v1/admin/unmatched-payments/{id}/status`
+- `POST /api/v1/admin/unmatched-payments/{id}/retry`
+
+Only emails listed in `ADMIN_EMAILS` can access the reconciliation layer.
 
 ## Settlement Rules
 

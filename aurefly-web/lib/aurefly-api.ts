@@ -28,6 +28,69 @@ export type MerchantInvoice = PublicInvoice & {
 export type AuthenticatedUser = {
   id: string;
   email: string;
+  name?: string | null;
+  is_admin?: boolean;
+};
+
+export type UnmatchedPaymentSummary = {
+  id: string;
+  signature: string;
+  destination_wallet: string;
+  amount_usdc: string;
+  sender_wallet?: string | null;
+  reference_pubkey?: string | null;
+  seen_at: string;
+  reason: string;
+  status:
+    | "pending"
+    | "reviewed"
+    | "resolved"
+    | "ignored"
+    | "refunded_manually"
+    | "needs_investigation"
+    | string;
+  linked_invoice_id?: string | null;
+  notes?: string | null;
+};
+
+export type UnmatchedPaymentAuditEvent = {
+  id: string;
+  action: string;
+  actor_email: string;
+  previous_status?: string | null;
+  next_status?: string | null;
+  linked_invoice_id?: string | null;
+  note?: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type ReconcilePaymentSummary = {
+  invoice_id: string;
+  tx_signature: string;
+  amount_usdc: string;
+  payer_wallet_address?: string | null;
+  recipient_token_account: string;
+  token_mint: string;
+  finalized_at?: string | null;
+  created_at: string;
+};
+
+export type ChainSnapshot = {
+  amount_usdc: string;
+  source_owner?: string | null;
+  finalized_at?: string | null;
+  account_keys: string[];
+  lookup_error?: string | null;
+};
+
+export type UnmatchedPaymentDetail = {
+  payment: UnmatchedPaymentSummary;
+  linked_invoice?: MerchantInvoice | null;
+  existing_payment?: ReconcilePaymentSummary | null;
+  audit_events: UnmatchedPaymentAuditEvent[];
+  metadata: Record<string, unknown>;
+  chain_snapshot?: ChainSnapshot | null;
 };
 
 export type CreateInvoicePayload = {
@@ -164,6 +227,52 @@ export async function cancelInvoice(invoiceId: string) {
   return internalApiFetch<MerchantInvoice>(`/invoices/${invoiceId}/cancel`, {
     method: "POST",
   });
+}
+
+export async function fetchUnmatchedPayments(query?: URLSearchParams | string) {
+  const suffix = query
+    ? `?${typeof query === "string" ? query : query.toString()}`
+    : "";
+  return internalApiFetch<UnmatchedPaymentSummary[]>(`/admin/unmatched-payments${suffix}`);
+}
+
+export async function fetchUnmatchedPaymentDetail(unmatchedPaymentId: string) {
+  return internalApiFetch<UnmatchedPaymentDetail>(`/admin/unmatched-payments/${unmatchedPaymentId}`);
+}
+
+export async function linkUnmatchedPayment(
+  unmatchedPaymentId: string,
+  payload: { invoice_id: string; note?: string },
+) {
+  return internalApiFetch<UnmatchedPaymentDetail>(
+    `/admin/unmatched-payments/${unmatchedPaymentId}/link`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function updateUnmatchedPaymentStatus(
+  unmatchedPaymentId: string,
+  payload: { status: string; note?: string },
+) {
+  return internalApiFetch<UnmatchedPaymentDetail>(
+    `/admin/unmatched-payments/${unmatchedPaymentId}/status`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function retryUnmatchedPayment(unmatchedPaymentId: string) {
+  return internalApiFetch<UnmatchedPaymentDetail>(
+    `/admin/unmatched-payments/${unmatchedPaymentId}/retry`,
+    {
+      method: "POST",
+    },
+  );
 }
 
 export function createClientRequestId() {

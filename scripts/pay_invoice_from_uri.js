@@ -8,6 +8,11 @@ const SUBTOTAL_USDC = process.argv[4] || "0.020";
 const PAYOUT_ADDRESS = process.argv[5] || process.env.PAYOUT_ADDRESS || "AbC2BEBTyK45VHyeFodk7HBmeTzJBUoBxAvbt8nTXEUy";
 const KEYPAIR_PATH =
   process.argv[6] || path.join(process.env.USERPROFILE || process.env.HOME || "", ".config", "solana", "id.json");
+const SUPABASE_URL =
+  process.env.SUPABASE_URL || "https://wqptkvchxofjveolrwps.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY =
+  process.env.SUPABASE_PUBLISHABLE_KEY ||
+  "sb_publishable_J3S_Ho95ApVlN9eNqWcAAA_6yBUMbww";
 const USDC_DECIMALS = 6;
 const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
@@ -21,15 +26,7 @@ async function main() {
   const payer = loadKeypair(KEYPAIR_PATH);
   const connection = new Connection(rpcUrl, "finalized");
   const email = `uri-${Date.now()}@example.com`;
-
-  const auth = await requestJson("POST", `${API_BASE}/auth/sign-up`, {
-    email,
-    password: PASSWORD,
-  });
-  const signIn = await requestJson("POST", `${API_BASE}/auth/sign-in`, {
-    email,
-    password: PASSWORD,
-  });
+  const signIn = await signUpAndSignIn(email, PASSWORD);
   const invoice = await requestJsonWithToken(
     "POST",
     `${API_BASE}/me/invoices`,
@@ -38,7 +35,7 @@ async function main() {
       payout_address: PAYOUT_ADDRESS,
       description: "URI payment smoke",
     },
-    signIn.token
+    signIn.accessToken
   );
   const payPageUrl = `${APP_BASE}/pay/${invoice.id}`;
   const payPageResponse = await fetch(payPageUrl);
@@ -55,7 +52,12 @@ async function main() {
   const payment = await payInvoiceFromUri(connection, payer, invoice.payment_uri);
   const observedInvoice = await requestJson("GET", `${API_BASE}/public/invoices/${invoice.id}`);
   const paidInvoice = await waitForInvoicePaid(invoice.id);
-  const dashboardInvoices = await requestJsonWithToken("GET", `${API_BASE}/me/invoices`, undefined, signIn.token);
+  const dashboardInvoices = await requestJsonWithToken(
+    "GET",
+    `${API_BASE}/me/invoices`,
+    undefined,
+    signIn.accessToken
+  );
   const dashboardInvoice = dashboardInvoices.find((item) => item.id === invoice.id) || null;
 
   const summary = {
@@ -274,6 +276,62 @@ function loadKeypair(filePath) {
   return Keypair.fromSecretKey(Uint8Array.from(secret));
 }
 
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const text = await response.text();
+  let json = null;
+
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = text;
+  }
+
+  return { response, json };
+}
+
+async function signUpAndSignIn(email, password) {
+  const headers = {
+    apikey: SUPABASE_PUBLISHABLE_KEY,
+    "Content-Type": "application/json",
+  };
+  const body = JSON.stringify({ email, password });
+
+  const signup = await fetchJson(`${SUPABASE_URL}/auth/v1/signup`, {
+    method: "POST",
+    headers,
+    body,
+  });
+
+  if (!signup.response.ok) {
+    throw new Error(`Supabase sign-up failed (${signup.response.status}): ${JSON.stringify(signup.json)}`);
+  }
+
+  if (signup.json?.session?.access_token) {
+    return {
+      email,
+      supabaseUserId: signup.json.user?.id ?? null,
+      accessToken: signup.json.session.access_token,
+    };
+  }
+
+  const signin = await fetchJson(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers,
+    body,
+  });
+
+  if (!signin.response.ok || !signin.json?.access_token) {
+    throw new Error(`Supabase sign-in failed (${signin.response.status}): ${JSON.stringify(signin.json)}`);
+  }
+
+  return {
+    email,
+    supabaseUserId: signin.json.user?.id ?? signup.json?.user?.id ?? null,
+    accessToken: signin.json.access_token,
+  };
+}
+
 function detectRpcProvider(rpcUrl) {
   if (rpcUrl.includes("helius")) {
     return "helius";
@@ -322,18 +380,21 @@ async function requestJsonWithToken(method, url, body, token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(url, {
+  const { response, json } = await fetchJson(url, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  const payload = await response.json();
   if (!response.ok) {
-    throw new Error(payload.error || `${method} ${url} failed`);
+    const errorMessage =
+      (json && typeof json === "object" && json.error) ||
+      (typeof json === "string" && json) ||
+      `${method} ${url} failed (${response.status})`;
+    throw new Error(errorMessage);
   }
 
-  return payload;
+  return json;
 }
 
 main().catch((error) => {

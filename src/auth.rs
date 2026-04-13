@@ -31,3 +31,20 @@ pub async fn require_user(headers: &HeaderMap, state: &AppState) -> AppResult<Us
         .await?
         .ok_or_else(|| AppError::Unauthorized("invalid or expired auth token".to_string()))
 }
+
+pub fn user_is_admin(user: &User, state: &AppState) -> bool {
+    state
+        .admin_emails
+        .iter()
+        .any(|email| email.eq_ignore_ascii_case(&user.email))
+}
+
+pub async fn require_admin(headers: &HeaderMap, state: &AppState) -> AppResult<User> {
+    let user = require_user(headers, state).await?;
+
+    if user_is_admin(&user, state) {
+        Ok(user)
+    } else {
+        Err(AppError::Forbidden("admin access required".to_string()))
+    }
+}

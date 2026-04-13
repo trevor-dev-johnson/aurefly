@@ -605,6 +605,18 @@ export function DashboardClient() {
             </a>
           </nav>
 
+          {user?.is_admin ? (
+            <div className="mt-4 rounded-[1.5rem] border border-white/7 bg-white/[0.03] p-4">
+              <div className="text-xs uppercase tracking-[0.22em] text-slate-500">Operations</div>
+              <Link
+                href="/admin/reconcile"
+                className="mt-3 inline-flex text-sm font-medium text-sky-300 transition hover:text-sky-200"
+              >
+                Open reconciliation
+              </Link>
+            </div>
+          ) : null}
+
           <div className="mt-10 rounded-[1.5rem] border border-white/7 bg-white/[0.03] p-4">
             <div className="text-xs uppercase tracking-[0.22em] text-slate-500">Account</div>
             <div className="mt-3 text-sm font-medium text-white">{user?.email}</div>

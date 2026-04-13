@@ -5,8 +5,8 @@ use uuid::Uuid;
 use crate::{
     error::{AppError, AppResult},
     models::invoice::Invoice,
-    solana::parse_pubkey,
     services::invoices,
+    solana::parse_pubkey,
 };
 
 #[derive(Debug, Serialize)]
@@ -74,9 +74,10 @@ impl InvoiceResponse {
         let subtotal_usdc = invoice.subtotal_usdc.normalize().to_string();
         let platform_fee_usdc = invoice.platform_fee_usdc.normalize().to_string();
         let amount_usdc = invoice.amount_usdc.normalize().to_string();
-        let net_amount_usdc = invoices::calculate_net_amount(invoice.amount_usdc, invoice.platform_fee_usdc)
-            .normalize()
-            .to_string();
+        let net_amount_usdc =
+            invoices::calculate_net_amount(invoice.amount_usdc, invoice.platform_fee_usdc)
+                .normalize()
+                .to_string();
         let paid_amount_usdc = invoice.paid_amount_usdc.normalize().to_string();
         let payment_uri = build_payment_uri(
             &invoice.wallet_pubkey,
@@ -88,8 +89,9 @@ impl InvoiceResponse {
             .latest_payment_tx_signature
             .as_deref()
             .map(build_explorer_tx_url);
-        let payment_observed_tx_signature =
-            payment_observation.as_ref().map(|observation| observation.tx_signature.clone());
+        let payment_observed_tx_signature = payment_observation
+            .as_ref()
+            .map(|observation| observation.tx_signature.clone());
         let payment_observed_tx_url = payment_observation
             .as_ref()
             .map(|observation| build_explorer_tx_url(&observation.tx_signature));

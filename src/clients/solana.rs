@@ -51,9 +51,7 @@ impl SolanaRpcClient {
         fallback_rpc_url: Option<String>,
         fallback_ws_url: Option<String>,
     ) -> Self {
-        let derived_fallback_ws_url = fallback_rpc_url
-            .as_deref()
-            .and_then(derive_websocket_url);
+        let derived_fallback_ws_url = fallback_rpc_url.as_deref().and_then(derive_websocket_url);
 
         Self {
             http: Client::builder()
@@ -72,15 +70,11 @@ impl SolanaRpcClient {
     }
 
     pub fn redacted_fallback_rpc_url(&self) -> Option<String> {
-        self.fallback_rpc_url
-            .as_deref()
-            .map(redact_rpc_url)
+        self.fallback_rpc_url.as_deref().map(redact_rpc_url)
     }
 
     pub fn websocket_url(&self) -> Option<&str> {
-        self.ws_url
-            .as_deref()
-            .or(self.fallback_ws_url.as_deref())
+        self.ws_url.as_deref().or(self.fallback_ws_url.as_deref())
     }
 
     pub fn websocket_urls(&self) -> Vec<String> {
@@ -132,11 +126,13 @@ impl SolanaRpcClient {
             Ok(Some(token_account)) => {
                 if token_account.mint != MAINNET_USDC_MINT {
                     return Err(AppError::Validation(
-                        "payout_address must be a mainnet wallet address or mainnet USDC account".to_string(),
+                        "payout_address must be a mainnet wallet address or mainnet USDC account"
+                            .to_string(),
                     ));
                 }
 
-                let token_owner_settlement = UsdcSettlement::from_wallet_pubkey(&token_account.owner)?;
+                let token_owner_settlement =
+                    UsdcSettlement::from_wallet_pubkey(&token_account.owner)?;
                 if payout_address != token_owner_settlement.usdc_ata {
                     return Err(AppError::Validation(
                         "payout_address must be the wallet address or its mainnet USDC associated token account. Non-ATA token accounts are not supported.".to_string(),
@@ -200,8 +196,7 @@ impl SolanaRpcClient {
         }
 
         let token_program_id = token_program_id()?;
-        let instruction =
-            create_associated_token_account(&payer, &owner, &mint, &token_program_id);
+        let instruction = create_associated_token_account(&payer, &owner, &mint, &token_program_id);
         let transaction = Transaction::new_signed_with_payer(
             &[instruction],
             Some(&payer),
@@ -266,8 +261,13 @@ impl SolanaRpcClient {
         recipient_token_account: &str,
         mint: &str,
     ) -> AppResult<Option<ParsedUsdcTransfer>> {
-        self.get_usdc_transfer_to_token_account(signature, recipient_token_account, mint, "finalized")
-            .await
+        self.get_usdc_transfer_to_token_account(
+            signature,
+            recipient_token_account,
+            mint,
+            "finalized",
+        )
+        .await
     }
 
     pub async fn get_confirmed_usdc_transfer_to_token_account(
@@ -276,8 +276,13 @@ impl SolanaRpcClient {
         recipient_token_account: &str,
         mint: &str,
     ) -> AppResult<Option<ParsedUsdcTransfer>> {
-        self.get_usdc_transfer_to_token_account(signature, recipient_token_account, mint, "confirmed")
-            .await
+        self.get_usdc_transfer_to_token_account(
+            signature,
+            recipient_token_account,
+            mint,
+            "confirmed",
+        )
+        .await
     }
 
     async fn get_signatures_for_address(
@@ -339,9 +344,7 @@ impl SolanaRpcClient {
         };
 
         let token_program_id = token_program_id()?.to_string();
-        let owner_program = account_info
-            .get("owner")
-            .and_then(|value| value.as_str());
+        let owner_program = account_info.get("owner").and_then(|value| value.as_str());
         let parsed_type = account_info
             .get("data")
             .and_then(|value| value.get("parsed"))
@@ -498,11 +501,12 @@ impl SolanaRpcClient {
 
         let rpc: RpcEnvelope<String> = self.post(payload).await?;
         rpc_error_to_result(rpc.error, "sendTransaction")?;
-        let signature = rpc
-            .result
-            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("missing sendTransaction signature")))?;
+        let signature = rpc.result.ok_or_else(|| {
+            AppError::Internal(anyhow::anyhow!("missing sendTransaction signature"))
+        })?;
 
-        Signature::from_str(&signature).map_err(|error| AppError::Internal(anyhow::Error::new(error)))
+        Signature::from_str(&signature)
+            .map_err(|error| AppError::Internal(anyhow::Error::new(error)))
     }
 
     async fn wait_for_signature_finalized(&self, signature: &Signature) -> AppResult<()> {
@@ -551,10 +555,7 @@ impl SolanaRpcClient {
         )))
     }
 
-    async fn post<T: for<'de> Deserialize<'de>>(
-        &self,
-        payload: serde_json::Value,
-    ) -> AppResult<T> {
+    async fn post<T: for<'de> Deserialize<'de>>(&self, payload: serde_json::Value) -> AppResult<T> {
         let method = payload
             .get("method")
             .and_then(|value| value.as_str())
@@ -566,13 +567,18 @@ impl SolanaRpcClient {
             let mut round_last_error: Option<AppError> = None;
 
             for endpoint in self.rpc_endpoints() {
-                match self.post_to_endpoint::<T>(&endpoint.rpc_url, &payload).await {
+                match self
+                    .post_to_endpoint::<T>(&endpoint.rpc_url, &payload)
+                    .await
+                {
                     Ok(parsed) => {
                         if endpoint.rpc_url != self.rpc_url {
                             tracing::warn!(
                                 rpc_method = method,
                                 active_rpc = %redact_rpc_url(&endpoint.rpc_url),
+                                active_provider = detect_rpc_provider(&endpoint.rpc_url),
                                 primary_rpc = %self.redacted_rpc_url(),
+                                primary_provider = detect_rpc_provider(&self.rpc_url),
                                 "Solana RPC primary unavailable; using fallback endpoint"
                             );
                         }
@@ -699,11 +705,13 @@ impl SolanaRpcClient {
                 )));
             }
 
-            return Err(EndpointPostError::Fatal(AppError::Internal(anyhow::anyhow!(
-                "Solana RPC failed with HTTP {}: {}",
-                status.as_u16(),
-                truncate_for_log(&response_body)
-            ))));
+            return Err(EndpointPostError::Fatal(AppError::Internal(
+                anyhow::anyhow!(
+                    "Solana RPC failed with HTTP {}: {}",
+                    status.as_u16(),
+                    truncate_for_log(&response_body)
+                ),
+            )));
         }
 
         response
@@ -1041,7 +1049,11 @@ fn derive_websocket_url(rpc_url: &str) -> Option<String> {
     rpc_url
         .strip_prefix("https://")
         .map(|rest| format!("wss://{rest}"))
-        .or_else(|| rpc_url.strip_prefix("http://").map(|rest| format!("ws://{rest}")))
+        .or_else(|| {
+            rpc_url
+                .strip_prefix("http://")
+                .map(|rest| format!("ws://{rest}"))
+        })
 }
 
 fn redact_rpc_url(value: &str) -> String {
@@ -1061,4 +1073,18 @@ fn redact_rpc_url(value: &str) -> String {
         .join("&");
 
     format!("{base}?{redacted_query}")
+}
+
+fn detect_rpc_provider(value: &str) -> &'static str {
+    if value.contains("helius") {
+        "helius"
+    } else if value.contains("quicknode") {
+        "quicknode"
+    } else if value.contains("triton") {
+        "triton"
+    } else if value.contains("solana.com") {
+        "solana_public"
+    } else {
+        "custom"
+    }
 }

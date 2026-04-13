@@ -29,9 +29,7 @@ pub async fn create(pool: &PgPool, input: CreatePayment) -> AppResult<CreatePaym
     let tx_signature = input.tx_signature.trim().to_string();
 
     if tx_signature.is_empty() {
-        return Err(AppError::Validation(
-            "tx_signature is required".to_string(),
-        ));
+        return Err(AppError::Validation("tx_signature is required".to_string()));
     }
 
     let payer_wallet_address = input.payer_wallet_address.and_then(clean_optional);
@@ -186,7 +184,7 @@ pub async fn tx_signature_exists(pool: &PgPool, tx_signature: &str) -> AppResult
     Ok(exists)
 }
 
-async fn get_by_tx_signature(pool: &PgPool, tx_signature: &str) -> AppResult<Option<Payment>> {
+pub async fn get_by_tx_signature(pool: &PgPool, tx_signature: &str) -> AppResult<Option<Payment>> {
     let payment = sqlx::query_as::<_, Payment>(
         r#"
         SELECT
@@ -222,8 +220,9 @@ fn clean_optional(value: String) -> Option<String> {
 }
 
 fn parse_amount(raw_amount: &str) -> AppResult<Decimal> {
-    let amount = Decimal::from_str(raw_amount.trim())
-        .map_err(|_| AppError::Validation("amount_usdc must be a valid decimal string".to_string()))?;
+    let amount = Decimal::from_str(raw_amount.trim()).map_err(|_| {
+        AppError::Validation("amount_usdc must be a valid decimal string".to_string())
+    })?;
 
     if amount <= Decimal::ZERO {
         return Err(AppError::Validation(

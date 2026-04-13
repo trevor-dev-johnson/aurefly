@@ -1,11 +1,11 @@
 use axum::{
     extract::Request,
-    middleware,
-    middleware::Next,
     http::{
         header::{AUTHORIZATION, CONTENT_TYPE},
         HeaderName, HeaderValue, Method,
     },
+    middleware,
+    middleware::Next,
     response::Response,
     Router,
 };

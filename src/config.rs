@@ -11,6 +11,7 @@ pub struct Config {
     pub host: IpAddr,
     pub port: u16,
     pub allowed_origins: Vec<String>,
+    pub admin_emails: Vec<String>,
     pub supabase_url: Option<String>,
     pub supabase_publishable_key: Option<String>,
     pub solana_rpc_url: String,
@@ -23,6 +24,15 @@ pub struct Config {
     pub auth_rate_limit_max_requests: usize,
     pub auth_rate_limit_window_secs: u64,
     pub payment_detector_poll_interval_secs: u64,
+    pub payment_detector_fast_poll_interval_secs: u64,
+    pub payment_detector_medium_poll_interval_secs: u64,
+    pub payment_detector_slow_poll_interval_secs: u64,
+    pub payment_detector_fast_window_secs: u64,
+    pub payment_detector_medium_window_secs: u64,
+    pub payment_detector_max_targets_per_cycle: usize,
+    pub payment_detector_max_active_logs_subscriptions: usize,
+    pub payment_detector_max_idle_backoff_secs: u64,
+    pub payment_detector_signature_dedupe_ttl_secs: u64,
     pub payment_detector_signature_limit: usize,
     pub invoice_pending_ttl_secs: u64,
 }
@@ -48,8 +58,14 @@ impl Config {
             .filter(|value| !value.is_empty())
             .map(ToString::to_string)
             .collect();
-        let supabase_url =
-            optional_env_any(&["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"]);
+        let admin_emails = optional_env("ADMIN_EMAILS")
+            .unwrap_or_default()
+            .split(',')
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| value.to_lowercase())
+            .collect();
+        let supabase_url = optional_env_any(&["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"]);
         let supabase_publishable_key = optional_env_any(&[
             "SUPABASE_PUBLISHABLE_KEY",
             "SUPABASE_ANON_KEY",
@@ -75,9 +91,8 @@ impl Config {
                 }
             })
             .or_else(|| {
-                helius_api_key.map(|api_key| {
-                    format!("https://mainnet.helius-rpc.com/?api-key={api_key}")
-                })
+                helius_api_key
+                    .map(|api_key| format!("https://mainnet.helius-rpc.com/?api-key={api_key}"))
             })
             .unwrap_or_else(|| "https://api.mainnet-beta.solana.com".to_string());
         let solana_fallback_rpc_url = optional_env("SOLANA_FALLBACK_RPC_URL");
@@ -103,9 +118,53 @@ impl Config {
             .parse()
             .context("AUTH_RATE_LIMIT_WINDOW_SECS must be a valid u64")?;
         let payment_detector_poll_interval_secs = env::var("PAYMENT_DETECTOR_POLL_INTERVAL_SECS")
-            .unwrap_or_else(|_| "10".to_string())
+            .or_else(|_| env::var("PAYMENT_DETECTOR_SCHEDULER_TICK_SECS"))
+            .unwrap_or_else(|_| "5".to_string())
             .parse()
             .context("PAYMENT_DETECTOR_POLL_INTERVAL_SECS must be a valid u64")?;
+        let payment_detector_fast_poll_interval_secs =
+            env::var("PAYMENT_DETECTOR_FAST_POLL_INTERVAL_SECS")
+                .unwrap_or_else(|_| "6".to_string())
+                .parse()
+                .context("PAYMENT_DETECTOR_FAST_POLL_INTERVAL_SECS must be a valid u64")?;
+        let payment_detector_medium_poll_interval_secs =
+            env::var("PAYMENT_DETECTOR_MEDIUM_POLL_INTERVAL_SECS")
+                .unwrap_or_else(|_| "20".to_string())
+                .parse()
+                .context("PAYMENT_DETECTOR_MEDIUM_POLL_INTERVAL_SECS must be a valid u64")?;
+        let payment_detector_slow_poll_interval_secs =
+            env::var("PAYMENT_DETECTOR_SLOW_POLL_INTERVAL_SECS")
+                .unwrap_or_else(|_| "60".to_string())
+                .parse()
+                .context("PAYMENT_DETECTOR_SLOW_POLL_INTERVAL_SECS must be a valid u64")?;
+        let payment_detector_fast_window_secs = env::var("PAYMENT_DETECTOR_FAST_WINDOW_SECS")
+            .unwrap_or_else(|_| "120".to_string())
+            .parse()
+            .context("PAYMENT_DETECTOR_FAST_WINDOW_SECS must be a valid u64")?;
+        let payment_detector_medium_window_secs = env::var("PAYMENT_DETECTOR_MEDIUM_WINDOW_SECS")
+            .unwrap_or_else(|_| "900".to_string())
+            .parse()
+            .context("PAYMENT_DETECTOR_MEDIUM_WINDOW_SECS must be a valid u64")?;
+        let payment_detector_max_targets_per_cycle =
+            env::var("PAYMENT_DETECTOR_MAX_TARGETS_PER_CYCLE")
+                .unwrap_or_else(|_| "6".to_string())
+                .parse()
+                .context("PAYMENT_DETECTOR_MAX_TARGETS_PER_CYCLE must be a valid usize")?;
+        let payment_detector_max_active_logs_subscriptions =
+            env::var("PAYMENT_DETECTOR_MAX_ACTIVE_LOGS_SUBSCRIPTIONS")
+                .unwrap_or_else(|_| "12".to_string())
+                .parse()
+                .context("PAYMENT_DETECTOR_MAX_ACTIVE_LOGS_SUBSCRIPTIONS must be a valid usize")?;
+        let payment_detector_max_idle_backoff_secs =
+            env::var("PAYMENT_DETECTOR_MAX_IDLE_BACKOFF_SECS")
+                .unwrap_or_else(|_| "300".to_string())
+                .parse()
+                .context("PAYMENT_DETECTOR_MAX_IDLE_BACKOFF_SECS must be a valid u64")?;
+        let payment_detector_signature_dedupe_ttl_secs =
+            env::var("PAYMENT_DETECTOR_SIGNATURE_DEDUPE_TTL_SECS")
+                .unwrap_or_else(|_| "300".to_string())
+                .parse()
+                .context("PAYMENT_DETECTOR_SIGNATURE_DEDUPE_TTL_SECS must be a valid u64")?;
         let payment_detector_signature_limit = env::var("PAYMENT_DETECTOR_SIGNATURE_LIMIT")
             .unwrap_or_else(|_| "25".to_string())
             .parse()
@@ -120,6 +179,7 @@ impl Config {
             host,
             port,
             allowed_origins,
+            admin_emails,
             supabase_url,
             supabase_publishable_key,
             solana_rpc_url,
@@ -132,6 +192,15 @@ impl Config {
             auth_rate_limit_max_requests,
             auth_rate_limit_window_secs,
             payment_detector_poll_interval_secs,
+            payment_detector_fast_poll_interval_secs,
+            payment_detector_medium_poll_interval_secs,
+            payment_detector_slow_poll_interval_secs,
+            payment_detector_fast_window_secs,
+            payment_detector_medium_window_secs,
+            payment_detector_max_targets_per_cycle,
+            payment_detector_max_active_logs_subscriptions,
+            payment_detector_max_idle_backoff_secs,
+            payment_detector_signature_dedupe_ttl_secs,
             payment_detector_signature_limit,
             invoice_pending_ttl_secs,
         })
