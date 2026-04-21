@@ -17,13 +17,15 @@ pub(crate) struct InvoiceResponse {
     reference_pubkey: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     requested_payout_address: Option<String>,
-    subtotal_usdc: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    subtotal_usdc: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     platform_fee_usdc: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     platform_fee_bps: Option<i16>,
     amount_usdc: String,
-    net_amount_usdc: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    net_amount_usdc: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -109,7 +111,11 @@ impl InvoiceResponse {
             } else {
                 None
             },
-            subtotal_usdc,
+            subtotal_usdc: if include_private_details {
+                Some(subtotal_usdc)
+            } else {
+                None
+            },
             platform_fee_usdc: if include_private_details {
                 Some(platform_fee_usdc)
             } else {
@@ -121,7 +127,11 @@ impl InvoiceResponse {
                 None
             },
             amount_usdc,
-            net_amount_usdc,
+            net_amount_usdc: if include_private_details {
+                Some(net_amount_usdc)
+            } else {
+                None
+            },
             description: invoice.description,
             client_email: if include_private_details {
                 invoice.client_email

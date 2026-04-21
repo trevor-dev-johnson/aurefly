@@ -1,10 +1,6 @@
 export type PublicInvoice = {
   id: string;
   amount_usdc: string;
-  subtotal_usdc?: string;
-  platform_fee_usdc?: string;
-  platform_fee_bps?: number;
-  net_amount_usdc?: string;
   paid_amount_usdc?: string;
   status: "pending" | "paid" | "expired" | "cancelled" | string;
   description?: string | null;
@@ -23,6 +19,10 @@ export type MerchantInvoice = PublicInvoice & {
   client_email?: string | null;
   client_request_id?: string | null;
   requested_payout_address?: string | null;
+  subtotal_usdc?: string;
+  platform_fee_usdc?: string;
+  platform_fee_bps?: number;
+  net_amount_usdc?: string;
 };
 
 export type AuthenticatedUser = {
