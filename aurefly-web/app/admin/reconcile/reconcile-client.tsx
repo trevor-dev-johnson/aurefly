@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import {
   ApiError,
+  fetchDetectorStatus,
   fetchCurrentUser,
   fetchUnmatchedPaymentDetail,
   fetchUnmatchedPayments,
@@ -14,6 +15,7 @@ import {
   retryUnmatchedPayment,
   shortAddress,
   type AuthenticatedUser,
+  type DetectorStatus,
   type UnmatchedPaymentDetail,
   type UnmatchedPaymentSummary,
   updateUnmatchedPaymentStatus,
@@ -81,6 +83,63 @@ function statusClasses(status: string) {
   }
 }
 
+function detectorHealth(status: DetectorStatus | null) {
+  if (!status?.started_at) {
+    return {
+      label: "Starting",
+      detail: "Detector has not reported a heartbeat yet.",
+      classes: "border border-amber-400/18 bg-amber-400/10 text-amber-100",
+    };
+  }
+
+  const lastHeartbeat = status.last_heartbeat_at ? new Date(status.last_heartbeat_at).getTime() : 0;
+  const stale = !lastHeartbeat || Date.now() - lastHeartbeat > 45_000;
+
+  if (stale) {
+    return {
+      label: "Stale",
+      detail: "Heartbeat is older than 45 seconds.",
+      classes: "border border-rose-400/18 bg-rose-400/10 text-rose-100",
+    };
+  }
+
+  return {
+    label: "Live",
+    detail: "Heartbeat is current and detector should be reconciling payments.",
+    classes: "border border-emerald-400/18 bg-emerald-400/10 text-emerald-100",
+  };
+}
+
+function formatRelativeTime(value: string | null | undefined) {
+  if (!value) {
+    return "waiting for first heartbeat";
+  }
+
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 1000));
+  if (seconds < 60) {
+    return `${seconds}s ago`;
+  }
+
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.round(minutes / 60);
+  return `${hours}h ago`;
+}
+
+function formatWholeNumber(value: number | null | undefined) {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+}
+
+function formatRate(value: number | null | undefined) {
+  const numeric = Number(value || 0);
+  return numeric >= 10 ? numeric.toFixed(0) : numeric.toFixed(1);
+}
+
 function toPrettyJson(value: unknown) {
   try {
     return JSON.stringify(value ?? {}, null, 2);
@@ -94,6 +153,9 @@ export function ReconcileClient() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
+  const [detectorStatus, setDetectorStatus] = useState<DetectorStatus | null>(null);
+  const [loadingDetector, setLoadingDetector] = useState(false);
+  const [detectorError, setDetectorError] = useState("");
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [items, setItems] = useState<UnmatchedPaymentSummary[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -165,6 +227,33 @@ export function ReconcileClient() {
     };
   }, [router]);
 
+  async function loadDetector({ silent = false }: { silent?: boolean } = {}) {
+    if (!silent) {
+      setLoadingDetector(true);
+    }
+
+    try {
+      const status = await fetchDetectorStatus();
+      setDetectorStatus(status);
+      setDetectorError("");
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        router.replace("/auth?mode=sign-in");
+        return;
+      }
+      if (error instanceof ApiError && error.status === 403) {
+        setAccessDenied(true);
+        return;
+      }
+
+      setDetectorError(error instanceof Error ? error.message : "Unable to load detector status.");
+    } finally {
+      if (!silent) {
+        setLoadingDetector(false);
+      }
+    }
+  }
+
   async function loadList(query = filterQuery) {
     setLoadingList(true);
     setPageError("");
@@ -203,6 +292,21 @@ export function ReconcileClient() {
 
     void loadList();
   }, [loadingUser, accessDenied, user?.is_admin, filterQuery]);
+
+  useEffect(() => {
+    if (loadingUser || accessDenied || !user?.is_admin) {
+      return;
+    }
+
+    void loadDetector();
+    const interval = window.setInterval(() => {
+      void loadDetector({ silent: true });
+    }, 15_000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [loadingUser, accessDenied, user?.is_admin, router]);
 
   useEffect(() => {
     if (!selectedId || accessDenied || !user?.is_admin) {
@@ -316,6 +420,10 @@ export function ReconcileClient() {
     }
   }
 
+  async function handleRefresh() {
+    await Promise.all([loadList(), loadDetector()]);
+  }
+
   if (loadingUser) {
     return (
       <main className="min-h-screen px-6 py-10 text-slate-200">
@@ -365,7 +473,7 @@ export function ReconcileClient() {
               </Link>
               <button
                 type="button"
-                onClick={() => void loadList()}
+                onClick={() => void handleRefresh()}
                 className="inline-flex h-11 items-center justify-center rounded-full bg-[#4f86ff] px-5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(79,134,255,0.24)] transition hover:bg-[#6595ff]"
               >
                 Refresh
@@ -373,6 +481,76 @@ export function ReconcileClient() {
             </div>
           </div>
         </header>
+
+        <section className="rounded-[2rem] border border-white/8 bg-white/[0.03] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur-xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-xs uppercase tracking-[0.22em] text-slate-500">Detector status</div>
+              <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">
+                Payment detector
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-400">
+                Watches merchant payout accounts, reconciles finalized USDC transfers, and fails over when the primary RPC degrades.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 lg:items-end">
+              <span
+                className={`inline-flex w-fit rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                  detectorHealth(detectorStatus).classes
+                }`}
+              >
+                {detectorHealth(detectorStatus).label}
+              </span>
+              <div className="text-sm text-slate-400">
+                Last heartbeat {formatRelativeTime(detectorStatus?.last_heartbeat_at)}
+              </div>
+              <div className="text-xs text-slate-500">
+                {loadingDetector ? "Refreshing detector status..." : detectorHealth(detectorStatus).detail}
+              </div>
+            </div>
+          </div>
+
+          {detectorError ? (
+            <div className="mt-4 rounded-[1.2rem] border border-rose-400/18 bg-rose-400/8 px-4 py-3 text-sm text-rose-100">
+              {detectorError}
+            </div>
+          ) : null}
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricBlock
+              label="Watching now"
+              value={`${formatWholeNumber(detectorStatus?.pending_target_count)} payout accounts`}
+              helper={`Websocket targets ${formatWholeNumber(detectorStatus?.active_logs_target_count)}/${formatWholeNumber(detectorStatus?.max_active_logs_subscriptions)}`}
+            />
+            <MetricBlock
+              label="Checks per minute"
+              value={formatRate(detectorStatus?.checks_per_minute)}
+              helper={`Per invoice ${formatRate(detectorStatus?.checks_per_invoice)} • tick ${formatWholeNumber(detectorStatus?.scheduler_tick_secs)}s`}
+            />
+            <MetricBlock
+              label="Settlements"
+              value={formatWholeNumber(detectorStatus?.total_matched_payments)}
+              helper={`Unmatched ${formatWholeNumber(detectorStatus?.total_unmatched_payments)} • window ${formatWholeNumber(detectorStatus?.interval_matched_payments)}`}
+            />
+            <MetricBlock
+              label="RPC pressure"
+              value={formatWholeNumber(
+                Number(detectorStatus?.total_rpc_rate_limits || 0) +
+                  Number(detectorStatus?.total_rpc_failures || 0),
+              )}
+              helper={`Rate limits ${formatWholeNumber(detectorStatus?.total_rpc_rate_limits)} • failures ${formatWholeNumber(detectorStatus?.total_rpc_failures)}`}
+            />
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <InfoBlock label="Primary RPC" value={detectorStatus?.rpc_url || "Loading..."} mono />
+            <InfoBlock
+              label="Fallback RPC"
+              value={detectorStatus?.fallback_rpc_url || "No fallback configured"}
+              mono
+            />
+          </div>
+        </section>
 
         <section className="rounded-[2rem] border border-white/8 bg-white/[0.03] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur-xl">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -722,6 +900,24 @@ function InfoBlock({
     <div className="rounded-[1.3rem] border border-white/7 bg-[#0c1520]/70 p-4">
       <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">{label}</div>
       <div className={`mt-3 text-sm text-white ${mono ? "break-all font-mono" : ""}`}>{value}</div>
+    </div>
+  );
+}
+
+function MetricBlock({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <div className="rounded-[1.3rem] border border-white/7 bg-[#0c1520]/70 p-4">
+      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">{label}</div>
+      <div className="mt-3 text-lg font-semibold tracking-[-0.03em] text-white">{value}</div>
+      <div className="mt-2 text-sm text-slate-400">{helper}</div>
     </div>
   );
 }

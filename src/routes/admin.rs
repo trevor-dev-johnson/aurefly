@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::require_admin,
+    detector::DetectorRuntimeSnapshot,
     error::AppResult,
     models::{
         payment::Payment,
@@ -25,6 +26,7 @@ use crate::{
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/detector", get(get_detector_status))
         .route("/unmatched-payments", get(list_unmatched_payments))
         .route(
             "/unmatched-payments/{unmatched_payment_id}",
@@ -42,6 +44,14 @@ pub fn router() -> Router<AppState> {
             "/unmatched-payments/{unmatched_payment_id}/retry",
             post(retry_unmatched_payment_detection),
         )
+}
+
+async fn get_detector_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> AppResult<Json<DetectorRuntimeSnapshot>> {
+    let _admin = require_admin(&headers, &state).await?;
+    Ok(Json(state.detector_runtime.snapshot().await))
 }
 
 #[derive(Debug, Deserialize)]

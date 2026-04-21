@@ -93,6 +93,44 @@ export type UnmatchedPaymentDetail = {
   chain_snapshot?: ChainSnapshot | null;
 };
 
+export type DetectorStatus = {
+  started_at?: string | null;
+  last_heartbeat_at?: string | null;
+  rpc_url: string;
+  fallback_rpc_url?: string | null;
+  websocket_enabled: boolean;
+  scheduler_tick_secs: number;
+  fast_poll_interval_secs: number;
+  medium_poll_interval_secs: number;
+  slow_poll_interval_secs: number;
+  fast_window_secs: number;
+  medium_window_secs: number;
+  max_targets_per_cycle: number;
+  max_active_logs_subscriptions: number;
+  max_idle_backoff_secs: number;
+  signature_dedupe_ttl_secs: number;
+  signature_limit: number;
+  pending_invoice_ttl_secs: number;
+  pending_target_count: number;
+  active_logs_target_count: number;
+  checks_per_minute: number;
+  checks_per_invoice: number;
+  avg_detection_secs?: number | null;
+  interval_target_checks: number;
+  interval_matched_payments: number;
+  interval_unmatched_payments: number;
+  interval_rpc_rate_limits: number;
+  interval_rpc_failures: number;
+  interval_websocket_notifications: number;
+  interval_polling_notifications: number;
+  total_target_checks: number;
+  total_matched_payments: number;
+  total_unmatched_payments: number;
+  total_rpc_rate_limits: number;
+  total_rpc_failures: number;
+  total_duplicate_detection_attempts: number;
+};
+
 export type CreateInvoicePayload = {
   client_request_id: string;
   amount_usdc: string;
@@ -234,6 +272,10 @@ export async function fetchUnmatchedPayments(query?: URLSearchParams | string) {
     ? `?${typeof query === "string" ? query : query.toString()}`
     : "";
   return internalApiFetch<UnmatchedPaymentSummary[]>(`/admin/unmatched-payments${suffix}`);
+}
+
+export async function fetchDetectorStatus() {
+  return internalApiFetch<DetectorStatus>("/admin/detector");
 }
 
 export async function fetchUnmatchedPaymentDetail(unmatchedPaymentId: string) {

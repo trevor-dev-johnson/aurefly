@@ -10,7 +10,7 @@ use std::{
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
 use rust_decimal::Decimal;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
@@ -101,11 +101,139 @@ struct DetectorMetricsSnapshot {
     detection_latency_samples: u64,
 }
 
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct DetectorRuntimeSnapshot {
+    pub started_at: Option<DateTime<Utc>>,
+    pub last_heartbeat_at: Option<DateTime<Utc>>,
+    pub rpc_url: String,
+    pub fallback_rpc_url: Option<String>,
+    pub websocket_enabled: bool,
+    pub scheduler_tick_secs: u64,
+    pub fast_poll_interval_secs: u64,
+    pub medium_poll_interval_secs: u64,
+    pub slow_poll_interval_secs: u64,
+    pub fast_window_secs: u64,
+    pub medium_window_secs: u64,
+    pub max_targets_per_cycle: usize,
+    pub max_active_logs_subscriptions: usize,
+    pub max_idle_backoff_secs: u64,
+    pub signature_dedupe_ttl_secs: u64,
+    pub signature_limit: usize,
+    pub pending_invoice_ttl_secs: u64,
+    pub pending_target_count: usize,
+    pub active_logs_target_count: usize,
+    pub checks_per_minute: f64,
+    pub checks_per_invoice: f64,
+    pub avg_detection_secs: Option<f64>,
+    pub interval_target_checks: u64,
+    pub interval_matched_payments: u64,
+    pub interval_unmatched_payments: u64,
+    pub interval_rpc_rate_limits: u64,
+    pub interval_rpc_failures: u64,
+    pub interval_websocket_notifications: u64,
+    pub interval_polling_notifications: u64,
+    pub total_target_checks: u64,
+    pub total_matched_payments: u64,
+    pub total_unmatched_payments: u64,
+    pub total_rpc_rate_limits: u64,
+    pub total_rpc_failures: u64,
+    pub total_duplicate_detection_attempts: u64,
+}
+
+#[derive(Clone, Default)]
+pub struct DetectorRuntime {
+    inner: Arc<tokio::sync::RwLock<DetectorRuntimeSnapshot>>,
+}
+
+impl DetectorRuntime {
+    pub async fn snapshot(&self) -> DetectorRuntimeSnapshot {
+        self.inner.read().await.clone()
+    }
+
+    async fn mark_started(
+        &self,
+        solana: &SolanaRpcClient,
+        config: &PaymentDetectorConfig,
+        startup_target_count: usize,
+    ) {
+        let mut snapshot = self.inner.write().await;
+        *snapshot = DetectorRuntimeSnapshot {
+            started_at: Some(Utc::now()),
+            last_heartbeat_at: None,
+            rpc_url: solana.redacted_rpc_url(),
+            fallback_rpc_url: solana.redacted_fallback_rpc_url(),
+            websocket_enabled: solana.websocket_url().is_some(),
+            scheduler_tick_secs: config.scheduler_tick.as_secs(),
+            fast_poll_interval_secs: config.fast_poll_interval.as_secs(),
+            medium_poll_interval_secs: config.medium_poll_interval.as_secs(),
+            slow_poll_interval_secs: config.slow_poll_interval.as_secs(),
+            fast_window_secs: config.fast_window.as_secs(),
+            medium_window_secs: config.medium_window.as_secs(),
+            max_targets_per_cycle: config.max_targets_per_cycle,
+            max_active_logs_subscriptions: config.max_active_logs_subscriptions,
+            max_idle_backoff_secs: config.max_idle_backoff.as_secs(),
+            signature_dedupe_ttl_secs: config.signature_dedupe_ttl.as_secs(),
+            signature_limit: config.signature_limit,
+            pending_invoice_ttl_secs: config.pending_invoice_ttl.as_secs(),
+            pending_target_count: startup_target_count,
+            active_logs_target_count: 0,
+            checks_per_minute: 0.0,
+            checks_per_invoice: 0.0,
+            avg_detection_secs: None,
+            interval_target_checks: 0,
+            interval_matched_payments: 0,
+            interval_unmatched_payments: 0,
+            interval_rpc_rate_limits: 0,
+            interval_rpc_failures: 0,
+            interval_websocket_notifications: 0,
+            interval_polling_notifications: 0,
+            total_target_checks: 0,
+            total_matched_payments: 0,
+            total_unmatched_payments: 0,
+            total_rpc_rate_limits: 0,
+            total_rpc_failures: 0,
+            total_duplicate_detection_attempts: 0,
+        };
+    }
+
+    async fn update_heartbeat(
+        &self,
+        pending_target_count: usize,
+        active_logs_target_count: usize,
+        interval_metrics: DetectorMetricsSnapshot,
+        total_metrics: DetectorMetricsSnapshot,
+        checks_per_minute: f64,
+        checks_per_invoice: f64,
+    ) {
+        let mut snapshot = self.inner.write().await;
+        snapshot.last_heartbeat_at = Some(Utc::now());
+        snapshot.pending_target_count = pending_target_count;
+        snapshot.active_logs_target_count = active_logs_target_count;
+        snapshot.checks_per_minute = checks_per_minute;
+        snapshot.checks_per_invoice = checks_per_invoice;
+        snapshot.avg_detection_secs = interval_metrics.average_detection_secs();
+        snapshot.interval_target_checks = interval_metrics.target_checks_started;
+        snapshot.interval_matched_payments = interval_metrics.matched_payments;
+        snapshot.interval_unmatched_payments = interval_metrics.unmatched_payments;
+        snapshot.interval_rpc_rate_limits = interval_metrics.rpc_rate_limits;
+        snapshot.interval_rpc_failures = interval_metrics.rpc_failures;
+        snapshot.interval_websocket_notifications = interval_metrics.websocket_notifications;
+        snapshot.interval_polling_notifications = interval_metrics.polling_notifications;
+        snapshot.total_target_checks = total_metrics.target_checks_started;
+        snapshot.total_matched_payments = total_metrics.matched_payments;
+        snapshot.total_unmatched_payments = total_metrics.unmatched_payments;
+        snapshot.total_rpc_rate_limits = total_metrics.rpc_rate_limits;
+        snapshot.total_rpc_failures = total_metrics.rpc_failures;
+        snapshot.total_duplicate_detection_attempts = total_metrics.duplicate_detection_attempts;
+    }
+}
+
 #[derive(Clone, Default)]
 struct DetectorShared {
     metrics: Arc<DetectorMetrics>,
     active_logs_targets: Arc<tokio::sync::RwLock<HashSet<String>>>,
     claimed_signatures: Arc<tokio::sync::Mutex<HashMap<String, Instant>>>,
+    runtime: DetectorRuntime,
 }
 
 impl DetectorMetrics {
@@ -201,6 +329,10 @@ impl DetectorMetricsSnapshot {
 }
 
 impl DetectorShared {
+    fn with_runtime(runtime: DetectorRuntime) -> Self {
+        Self { runtime, ..Self::default() }
+    }
+
     async fn set_active_logs_targets(&self, targets: HashSet<String>) {
         *self.active_logs_targets.write().await = targets;
     }
@@ -231,9 +363,17 @@ impl DetectorShared {
     }
 }
 
-pub async fn run(pool: PgPool, solana: SolanaRpcClient, config: PaymentDetectorConfig) {
-    let shared = DetectorShared::default();
+pub async fn run(
+    pool: PgPool,
+    solana: SolanaRpcClient,
+    config: PaymentDetectorConfig,
+    runtime: DetectorRuntime,
+) {
+    let shared = DetectorShared::with_runtime(runtime.clone());
     let startup_targets = load_pending_targets(&pool, config.pending_invoice_ttl).await;
+    runtime
+        .mark_started(&solana, &config, startup_targets.len())
+        .await;
     tracing::info!(
         rpc = %solana.redacted_rpc_url(),
         fallback_rpc = ?solana.redacted_fallback_rpc_url(),
@@ -311,6 +451,17 @@ async fn run_heartbeat_loop(
         } else {
             interval_metrics.target_checks_started as f64 / targets.len() as f64
         };
+        shared
+            .runtime
+            .update_heartbeat(
+                targets.len(),
+                active_logs_subscriptions,
+                interval_metrics,
+                current_metrics,
+                checks_per_minute,
+                checks_per_invoice,
+            )
+            .await;
 
         tracing::info!(
             rpc = %solana.redacted_rpc_url(),

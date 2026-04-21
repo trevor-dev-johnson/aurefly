@@ -20,7 +20,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 use crate::{
     clients::{solana::SolanaRpcClient, supabase::SupabaseAuthClient},
     config::Config,
-    detector::PaymentDetectorConfig,
+    detector::{DetectorRuntime, PaymentDetectorConfig},
     services::invoices,
     state::AppState,
 };
@@ -109,6 +109,7 @@ async fn main() -> anyhow::Result<()> {
         "starting payment detector"
     );
 
+    let detector_runtime = DetectorRuntime::default();
     let detector_handle = tokio::spawn(detector::run(
         pool.clone(),
         solana.clone(),
@@ -126,6 +127,7 @@ async fn main() -> anyhow::Result<()> {
             signature_limit: detector_signature_limit,
             pending_invoice_ttl: invoice_pending_ttl,
         },
+        detector_runtime.clone(),
     ));
     tokio::spawn(async move {
         match detector_handle.await {
@@ -134,7 +136,13 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    let state = AppState::new(pool, solana, supabase_auth, config.admin_emails.clone());
+    let state = AppState::new(
+        pool,
+        solana,
+        supabase_auth,
+        config.admin_emails.clone(),
+        detector_runtime,
+    );
     let app = app::build(state, config.allowed_origins.clone());
     let listener = TcpListener::bind(config.socket_addr())
         .await
