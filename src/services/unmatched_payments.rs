@@ -24,6 +24,10 @@ pub const STATUS_IGNORED: &str = "ignored";
 pub const STATUS_REFUNDED_MANUALLY: &str = "refunded_manually";
 pub const STATUS_NEEDS_INVESTIGATION: &str = "needs_investigation";
 
+const INVOICE_STATUS_PENDING: &str = "pending";
+const INVOICE_STATUS_EXPIRED: &str = "expired";
+const INVOICE_STATUS_CANCELLED: &str = "cancelled";
+
 pub struct CreateUnmatchedPayment {
     pub signature: String,
     pub destination_wallet: String,
@@ -508,10 +512,11 @@ pub async fn retry_detection(
                 next_status: Some(unmatched.status.clone()),
                 linked_invoice_id: unmatched.linked_invoice_id,
                 note: Some(
-                    "retry detection failed: no pending invoice matched this reference".to_string(),
+                    "retry detection failed: no invoice matched this reference and destination"
+                        .to_string(),
                 ),
                 metadata: json!({
-                    "reason": "no_pending_invoice",
+                    "reason": "no_invoice_match",
                     "reference_pubkey": reference_pubkey,
                 }),
             },
@@ -519,11 +524,12 @@ pub async fn retry_detection(
         .await?;
 
         return Err(AppError::Validation(
-            "retry detection failed: no pending invoice matched this reference".to_string(),
+            "retry detection failed: no invoice matched this reference and destination"
+                .to_string(),
         ));
     };
 
-    if candidate.status != "pending" {
+    if !invoice_status_allows_manual_resolution(&candidate.status) {
         append_audit_event(
             pool,
             AuditEventInput {
@@ -535,10 +541,10 @@ pub async fn retry_detection(
                 next_status: Some(unmatched.status.clone()),
                 linked_invoice_id: Some(candidate.id),
                 note: Some(
-                    "retry detection failed: matched invoice is no longer pending".to_string(),
+                    "retry detection failed: matched invoice is already paid".to_string(),
                 ),
                 metadata: json!({
-                    "reason": "invoice_not_pending",
+                    "reason": "invoice_not_manually_resolvable",
                     "invoice_id": candidate.id,
                     "invoice_status": candidate.status,
                 }),
@@ -547,7 +553,7 @@ pub async fn retry_detection(
         .await?;
 
         return Err(AppError::Validation(
-            "retry detection failed: matched invoice is no longer pending".to_string(),
+            "retry detection failed: matched invoice is already paid".to_string(),
         ));
     }
 
@@ -659,9 +665,9 @@ async fn create_or_resolve_payment_tx(
         return Ok(false);
     }
 
-    if invoice.status != "pending" {
+    if !invoice_status_allows_manual_resolution(&invoice.status) {
         return Err(AppError::Validation(
-            "only pending invoices can be linked unless the payment is already recorded for that invoice"
+            "only unpaid invoices can be linked unless the payment is already recorded for that invoice"
                 .to_string(),
         ));
     }
@@ -946,6 +952,13 @@ fn normalize_status(value: &str) -> AppResult<&'static str> {
     }
 }
 
+fn invoice_status_allows_manual_resolution(status: &str) -> bool {
+    matches!(
+        status.trim(),
+        INVOICE_STATUS_PENDING | INVOICE_STATUS_EXPIRED | INVOICE_STATUS_CANCELLED
+    )
+}
+
 #[derive(sqlx::FromRow)]
 struct InvoicePaymentTarget {
     id: Uuid,
@@ -965,4 +978,26 @@ struct AuditEventInput {
     linked_invoice_id: Option<Uuid>,
     note: Option<String>,
     metadata: Value,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::invoice_status_allows_manual_resolution;
+
+    #[test]
+    fn manual_resolution_allows_unpaid_invoice_statuses() {
+        assert!(invoice_status_allows_manual_resolution("pending"));
+        assert!(invoice_status_allows_manual_resolution("expired"));
+        assert!(invoice_status_allows_manual_resolution("cancelled"));
+    }
+
+    #[test]
+    fn manual_resolution_rejects_paid_invoice_status() {
+        assert!(!invoice_status_allows_manual_resolution("paid"));
+    }
+
+    #[test]
+    fn manual_resolution_rejects_unknown_invoice_status() {
+        assert!(!invoice_status_allows_manual_resolution("processing"));
+    }
 }

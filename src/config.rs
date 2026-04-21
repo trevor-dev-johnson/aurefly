@@ -21,8 +21,6 @@ pub struct Config {
     pub treasury_wallet_json: Option<String>,
     pub solana_fee_payer_path: Option<String>,
     pub solana_fee_payer_json: Option<String>,
-    pub auth_rate_limit_max_requests: usize,
-    pub auth_rate_limit_window_secs: u64,
     pub payment_detector_poll_interval_secs: u64,
     pub payment_detector_fast_poll_interval_secs: u64,
     pub payment_detector_medium_poll_interval_secs: u64,
@@ -109,14 +107,6 @@ impl Config {
             }
         });
         let solana_fee_payer_json = optional_env("SOLANA_FEE_PAYER_JSON");
-        let auth_rate_limit_max_requests = env::var("AUTH_RATE_LIMIT_MAX_REQUESTS")
-            .unwrap_or_else(|_| "10".to_string())
-            .parse()
-            .context("AUTH_RATE_LIMIT_MAX_REQUESTS must be a valid usize")?;
-        let auth_rate_limit_window_secs = env::var("AUTH_RATE_LIMIT_WINDOW_SECS")
-            .unwrap_or_else(|_| "60".to_string())
-            .parse()
-            .context("AUTH_RATE_LIMIT_WINDOW_SECS must be a valid u64")?;
         let payment_detector_poll_interval_secs = env::var("PAYMENT_DETECTOR_POLL_INTERVAL_SECS")
             .or_else(|_| env::var("PAYMENT_DETECTOR_SCHEDULER_TICK_SECS"))
             .unwrap_or_else(|_| "5".to_string())
@@ -189,8 +179,6 @@ impl Config {
             treasury_wallet_json,
             solana_fee_payer_path,
             solana_fee_payer_json,
-            auth_rate_limit_max_requests,
-            auth_rate_limit_window_secs,
             payment_detector_poll_interval_secs,
             payment_detector_fast_poll_interval_secs,
             payment_detector_medium_poll_interval_secs,

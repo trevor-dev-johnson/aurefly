@@ -6,7 +6,6 @@ mod db;
 mod detector;
 mod error;
 mod models;
-mod rate_limit;
 mod routes;
 mod services;
 mod solana;
