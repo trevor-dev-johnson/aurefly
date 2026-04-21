@@ -191,6 +191,17 @@ export function AuthClient({ initialMode }: AuthClientProps) {
             />
           </label>
 
+          {mode === "sign-in" ? (
+            <div className="flex justify-end text-sm">
+              <Link
+                href="/auth/forgot-password"
+                className="text-slate-400 transition hover:text-white"
+              >
+                Forgot password?
+              </Link>
+            </div>
+          ) : null}
+
           <button
             type="submit"
             disabled={submitting}
