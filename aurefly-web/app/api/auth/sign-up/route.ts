@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { checkAuthRateLimit } from "@/lib/auth-rate-limit";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 
 type AuthPayload = {
@@ -9,6 +10,14 @@ type AuthPayload = {
 
 export async function POST(request: Request) {
   try {
+    const rateLimited = checkAuthRateLimit(request, "sign-up", {
+      limit: 5,
+      windowMs: 10 * 60_000,
+    });
+    if (rateLimited) {
+      return rateLimited;
+    }
+
     const payload = (await request.json()) as AuthPayload;
     const email = payload.email?.trim() || "";
     const password = payload.password || "";
